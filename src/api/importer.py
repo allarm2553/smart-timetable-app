@@ -422,6 +422,8 @@ class BulkDataImporter:
 
             if any(w in course_type_raw.lower() for w in ["หมุน", "rotation"]):
                 course_type = CourseType.ROTATION_BASE.value
+            elif any(w in course_type_raw.lower() for w in ["ทฤษฎี+ปฏิบัติ", "ทฤษฎีและปฏิบัติ", "ท+ป", "ทฤษฎี ปฏิบัติ", "theory_practice", "theory+practice"]):
+                course_type = CourseType.THEORY_PRACTICE.value
             elif any(w in course_type_raw.lower() for w in ["ปฏิบัติ", "practice", "lab"]):
                 course_type = CourseType.ROTATION_BASE.value if is_rotation else CourseType.PRACTICE.value
             elif any(w in course_type_raw.lower() for w in ["ทฤษฎี", "theory", "บรรยาย"]):
@@ -430,10 +432,17 @@ class BulkDataImporter:
                 course_type = CourseType.ROTATION_BASE.value
             else:
                 try:
+                    t_val = int(float(theory_raw)) if theory_raw else 0
+                except (ValueError, TypeError):
+                    t_val = 0
+                try:
                     p_val = int(float(practice_raw)) if practice_raw else 0
                 except (ValueError, TypeError):
                     p_val = 0
-                if p_val > 0:
+
+                if t_val > 0 and p_val > 0:
+                    course_type = CourseType.THEORY_PRACTICE.value
+                elif p_val > 0:
                     course_type = CourseType.PRACTICE.value
                 elif periods >= 3:
                     course_type = CourseType.PRACTICE.value

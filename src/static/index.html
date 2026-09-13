@@ -2730,6 +2730,8 @@
           typeBadge = '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-purple-100 text-purple-800 border border-purple-200">เรียนรวม 2 กลุ่ม</span>';
         } else if (a.is_rotation) {
           typeBadge = '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">ฐานหมุนเวียน 3 สัปดาห์</span>';
+        } else if (c?.course_type === 'THEORY_PRACTICE') {
+          typeBadge = '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-sky-100 text-sky-800 border border-sky-300">ทฤษฎี+ปฏิบัติ</span>';
         } else if (c?.course_type === 'PRACTICE') {
           typeBadge = '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">ปฏิบัติ</span>';
         }
@@ -3652,9 +3654,10 @@
                 <div>
                   <label class="block text-[11px] font-bold text-slate-600 mb-1">ประเภทวิชา:</label>
                   <select id="newCourseType" class="w-full bg-white border border-slate-300 rounded px-2 py-1.5 text-xs">
-                    <option value="PRACTICE">ปฏิบัติทั่วไป (ต่อเนื่อง)</option>
+                    <option value="THEORY">ทฤษฎี (Theory)</option>
+                    <option value="PRACTICE">ปฏิบัติการ (Practice)</option>
+                    <option value="THEORY_PRACTICE">ทฤษฎี+ปฏิบัติ (Theory + Practice)</option>
                     <option value="ROTATION_BASE">ฐานหมุนเวียน 3 สัปดาห์</option>
-                    <option value="THEORY">ทฤษฎี</option>
                   </select>
                 </div>
               </div>
@@ -3895,6 +3898,7 @@
               <select id="editCourseType" class="w-full border border-slate-300 rounded px-3 py-2 bg-white">
                 <option value="THEORY">ทฤษฎี (Theory)</option>
                 <option value="PRACTICE">ปฏิบัติการ (Practice)</option>
+                <option value="THEORY_PRACTICE">ทฤษฎี+ปฏิบัติ (Theory + Practice)</option>
                 <option value="ROTATION_BASE">ฐานหมุนเวียน 3 สัปดาห์</option>
               </select>
             </div>

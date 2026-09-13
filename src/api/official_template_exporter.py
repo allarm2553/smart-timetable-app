@@ -108,8 +108,15 @@ class OfficialTemplateExporter:
                 is_prac = (c_type == "PRACTICE" or "ปฏิบัติ" in str(c_name))
                 periods = c_obj.get("periods_per_session", l.get("duration", 2)) if c_obj else l.get("duration", 2)
                 
-                t_hrs = 0 if is_prac else periods
-                p_hrs = periods if is_prac else 0
+                if c_type == "THEORY_PRACTICE":
+                    t_hrs = 1
+                    p_hrs = max(1, periods - 1)
+                elif is_prac:
+                    t_hrs = 0
+                    p_hrs = periods
+                else:
+                    t_hrs = periods
+                    p_hrs = 0
                 credits_val = 2
                 total_hrs = t_hrs + p_hrs
 
@@ -162,8 +169,15 @@ class OfficialTemplateExporter:
                 is_prac = (c_type == "PRACTICE" or "ปฏิบัติ" in str(c_name))
                 periods = c_obj.get("periods_per_session", l.get("duration", 2)) if c_obj else l.get("duration", 2)
                 
-                t_hrs = 0 if is_prac else periods
-                p_hrs = periods if is_prac else 0
+                if c_type == "THEORY_PRACTICE":
+                    t_hrs = 1
+                    p_hrs = max(1, periods - 1)
+                elif is_prac:
+                    t_hrs = 0
+                    p_hrs = periods
+                else:
+                    t_hrs = periods
+                    p_hrs = 0
                 credits_val = 2
                 total_hrs = t_hrs + p_hrs
 
@@ -212,8 +226,15 @@ class OfficialTemplateExporter:
                 is_prac = (c_type == "PRACTICE" or "ปฏิบัติ" in str(c_name))
                 periods = c_obj.get("periods_per_session", l.get("duration", 2)) if c_obj else l.get("duration", 2)
                 
-                t_hrs = 0 if is_prac else periods
-                p_hrs = periods if is_prac else 0
+                if c_type == "THEORY_PRACTICE":
+                    t_hrs = 1
+                    p_hrs = max(1, periods - 1)
+                elif is_prac:
+                    t_hrs = 0
+                    p_hrs = periods
+                else:
+                    t_hrs = periods
+                    p_hrs = 0
                 credits_val = 2
                 total_hrs = t_hrs + p_hrs
 
@@ -245,7 +266,7 @@ class OfficialTemplateExporter:
             cid = l.get("course_id")
             c_obj = self.courses_map.get(cid)
             c_type = c_obj.get("course_type", "THEORY") if c_obj else "THEORY"
-            is_prac = (c_type == "PRACTICE" or "ปฏิบัติ" in str(l.get("course_name", "")))
+            is_prac = (c_type in ["PRACTICE", "THEORY_PRACTICE"] or "ปฏิบัติ" in str(l.get("course_name", "")))
             prefix = "ป. " if is_prac else "ท. "
             
             raw_code = str(l.get("course_code") or l.get("course_name") or cid).strip()

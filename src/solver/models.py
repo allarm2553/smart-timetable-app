@@ -7,9 +7,10 @@ class EducationLevel(str, Enum):
     HIGH_VOC_CERT = "HIGH_VOC_CERT"  # ปวส. (15 สัปดาห์ = 5 บล็อก)
 
 class CourseType(str, Enum):
-    THEORY = "THEORY"                # ทฤษฎี (จัด 1-2 คาบ หรือเรียนรวมได้)
-    PRACTICE = "PRACTICE"            # ปฏิบัติทั่วไป (3-4 คาบต่อเนื่อง)
-    ROTATION_BASE = "ROTATION_BASE"  # วิชาปฏิบัติฐานหมุนเวียน 3 สัปดาห์ (Micro-Block)
+    THEORY = "THEORY"                                # ทฤษฎี (จัด 1-2 คาบ หรือเรียนรวมได้)
+    PRACTICE = "PRACTICE"                            # ปฏิบัติทั่วไป (3-4 คาบต่อเนื่อง)
+    THEORY_PRACTICE = "THEORY_PRACTICE"              # ทฤษฎี+ปฏิบัติ (Theory + Practice)
+    ROTATION_BASE = "ROTATION_BASE"                  # วิชาปฏิบัติฐานหมุนเวียน 3 สัปดาห์ (Micro-Block)
 
 class RoomType(str, Enum):
     CLASSROOM = "CLASSROOM"          # ห้องเรียนทฤษฎีทั่วไป (30-40 คน)

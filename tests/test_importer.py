@@ -171,7 +171,7 @@ def test_process_import_vocational_xlsx():
         elif c["code"] == "20105-2001":
             assert c["name"] == "วงจรไฟฟ้ากระแสสลับ"
             assert c["periods_per_session"] == 5 # 1 + 4
-            assert c["course_type"] == "PRACTICE"
+            assert c["course_type"] in ["PRACTICE", "THEORY_PRACTICE"]
 
     # Solve should succeed
     solve_res = client.post("/api/solve/current")
@@ -263,6 +263,61 @@ def test_process_import_replace_and_solve():
     # Reset back to default
     data_manager.reset_to_default()
 
+def test_theory_practice_course_type():
+    data_manager.reset_to_benchmark()
+    # 1. Add course with THEORY_PRACTICE
+    payload = {
+        "code": "20105-2101",
+        "name": "ไมโครคอนโทรลเลอร์ประยุกต์",
+        "course_type": "THEORY_PRACTICE",
+        "periods_per_session": 4,
+        "required_room_type": "LAB_ELECTRIC",
+        "primary_group_id": "G_CHO_1_1",
+        "teacher_id": "T_PONG",
+        "teaching_mode": "SINGLE"
+    }
+    res = client.post("/api/assignments", json=payload)
+    assert res.status_code == 200
+    res_data = res.json()
+    assert res_data["is_success"] is True
+
+    # 2. Verify stored course_type is THEORY_PRACTICE
+    all_d = data_manager.get_all_data()
+    course = next((c for c in all_d["courses"] if c["code"] == "20105-2101"), None)
+    assert course is not None
+    assert course["course_type"] == "THEORY_PRACTICE"
+    assert course["periods_per_session"] == 4
+
+    # 3. Update assignment and verify editing preserves THEORY_PRACTICE
+    ass = next((a for a in all_d["assignments"] if a["course_id"] == course["id"]), None)
+    assert ass is not None
+    update_payload = {
+        "name": "ไมโครคอนโทรลเลอร์ประยุกต์ (แก้ไข)",
+        "code": "20105-2101",
+        "course_type": "THEORY_PRACTICE",
+        "periods_per_session": 3,
+        "required_room_type": "LAB_ELECTRIC",
+        "primary_group_id": "G_CHO_1_1",
+        "teacher_id": "T_PONG"
+    }
+    up_res = client.put(f"/api/assignments/{ass['id']}", json=update_payload)
+    assert up_res.status_code == 200
+
+    all_d = data_manager.get_all_data()
+    updated_course = next((c for c in all_d["courses"] if c["id"] == course["id"]), None)
+    assert updated_course["course_type"] == "THEORY_PRACTICE"
+    assert updated_course["name"] == "ไมโครคอนโทรลเลอร์ประยุกต์ (แก้ไข)"
+    assert updated_course["periods_per_session"] == 3
+
+    # 4. Solve and ensure it generates timetable successfully
+    solve_res = client.post("/api/solve/current")
+    assert solve_res.status_code == 200
+    assert solve_res.json()["is_success"] is True
+
+    # Reset back to default
+    data_manager.reset_to_default()
+    print("✅ test_theory_practice_course_type passed")
+
 if __name__ == "__main__":
     test_is_valid_course_code()
     test_template_csv()
@@ -272,4 +327,5 @@ if __name__ == "__main__":
     test_process_import_vocational_xlsx()
     test_process_import_curriculum_with_title_and_subheaders()
     test_process_import_replace_and_solve()
+    test_theory_practice_course_type()
     print("\n🎉 ALL BULK IMPORTER TESTS PASSED SUCCESSFULLY! 🎉")

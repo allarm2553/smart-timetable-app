@@ -49,15 +49,35 @@ class TimetableSolver:
         # Variables:
         # starts[a_id, d, p] -> bool: assignment starts on day d at period p
         self.starts = {}
-        # assigned_room[a_id, r_id] -> bool
-        self.assigned_room = {}
         # block_active[a_id, b] -> bool: whether assignment is active in block b
         self.block_active = {}
         # occupies[a_id, d, p] -> bool: whether assignment covers period p
         self.occupies = {}
+        self._active_cache = {}
+
+    def _get_active_var(self, a_id: str, b: int, d: int, p: int):
+        """คืนค่าตัวแปร (หรือ None) ที่ระบุว่า assignment a_id กำลังเรียนอยู่ใน slot (b, d, p) หรือไม่"""
+        occ = self.occupies.get((a_id, d, p))
+        if occ is None:
+            return None
+        a = self.assignments[a_id]
+        p_grp = self.groups[a.primary_group_id]
+        if not a.is_rotation:
+            return occ if b in p_grp.active_blocks else None
+        else:
+            if b not in p_grp.active_blocks:
+                return None
+            key = (a_id, b, d, p)
+            if key in self._active_cache:
+                return self._active_cache[key]
+            v = self.model.NewBoolVar(f"act_{a_id}_{b}_{d}_{p}")
+            self.model.AddBoolAnd([occ, self.block_active[a_id, b]]).OnlyEnforceIf(v)
+            self.model.AddBoolOr([occ.Not(), self.block_active[a_id, b].Not()]).OnlyEnforceIf(v.Not())
+            self._active_cache[key] = v
+            return v
 
     def build_model(self):
-        # 1. สร้างตัวแปรเริ่มต้น
+        # 1. สร้างตัวแปรเวลาเริ่มต้นและครองคาบเรียน
         for a_id, a in self.assignments.items():
             duration = a.course.periods_per_session
             valid_start_periods = self.periods_per_day - duration + 1
@@ -67,115 +87,71 @@ class TimetableSolver:
             is_internship_grp = getattr(primary_grp, "is_internship", False) or (secondary_grp and getattr(secondary_grp, "is_internship", False))
             is_theory = (a.course.course_type == CourseType.THEORY)
 
-            # ตัวแปรเวลาเริ่มต้น (day, start_period)
+            # ตรวจสอบการล็อกคาบเรียนตายตัวล่วงหน้า (Pinned / Pre-assigned Lessons สำหรับวิชาสามัญ)
+            is_pinned = getattr(a, "is_pinned", False)
+            fixed_day = getattr(a, "fixed_day", None)
+            fixed_start = getattr(a, "fixed_start_period", None)
+
             start_vars = []
             for d in range(self.days):
                 for p in range(valid_start_periods):
-                    var = self.model.NewBoolVar(f"start_{a_id}_d{d}_p{p}")
-                    self.starts[a_id, d, p] = var
-
-                    # ห้ามวิชาใดๆ ทับคาบพักกลางวัน (index 4: 12:00-13:00)
                     overlaps_lunch = (p <= self.lunch_period < p + duration)
 
-                    # ตรวจสอบการล็อกคาบเรียนตายตัวล่วงหน้า (Pinned / Pre-assigned Lessons สำหรับวิชาสามัญ)
-                    is_pinned = getattr(a, "is_pinned", False)
-                    fixed_day = getattr(a, "fixed_day", None)
-                    fixed_start = getattr(a, "fixed_start_period", None)
-
                     if is_pinned and fixed_day is not None and fixed_start is not None:
-                        # fixed_start เป็น 1-indexed (เช่น คาบ 1 คือ index 0)
-                        target_p = fixed_start - 1
-                        if d == fixed_day and p == target_p:
-                            is_valid_time = True
-                        else:
-                            is_valid_time = False
+                        target_p = fixed_start - 1 if fixed_start >= 1 else fixed_start
+                        is_valid_time = (d == fixed_day and p == target_p)
                     elif is_internship_grp and is_theory:
-                        # กลุ่มฝึกงานในสถานประกอบการ/ทวิภาคี: ทฤษฎีต้องจัดหลัง 18:00 น. (คาบ 11-12 index 10-11)
+                        # กลุ่มฝึกงานในสถานประกอบการ: ทฤษฎีจัดหลัง 18:00 (คาบ 11-12)
                         is_valid_time = (p >= 10 and p + duration <= self.periods_per_day)
                     else:
-                        # กลุ่มปกติ หรือ ภาคปฏิบัติของกลุ่มฝึกงาน: จัดเวลากลางวัน คาบ 1-10 (08:00 - 18:00) ไม่ทับพักเที่ยง
+                        # ปกติ: กลางวัน ไม่ทับพักเที่ยง ไม่เกินคาบ 10
                         is_valid_time = (not overlaps_lunch and p + duration <= 10)
 
                     if is_valid_time:
+                        var = self.model.NewBoolVar(f"start_{a_id}_d{d}_p{p}")
+                        self.starts[a_id, d, p] = var
                         start_vars.append(var)
-                    else:
-                        self.model.Add(var == 0)
-            
+
             # แต่ละวิชาต้องมีเวลาเริ่ม 1 จุดต่อสัปดาห์
             self.model.AddExactlyOne(start_vars)
 
             # ตัวแปรการครองคาบเรียน (occupies day d, period p)
             for d in range(self.days):
                 for p in range(self.periods_per_day):
-                    # p ถูกครอบคลุมถ้าวิชาเริ่มที่ p_start <= p < p_start + duration
                     covering_starts = [
-                        self.starts[a_id, d, p_start]
-                        for p_start in range(max(0, p - duration + 1), min(valid_start_periods, p + 1))
+                        self.starts[a_id, d, sp]
+                        for sp in range(max(0, p - duration + 1), min(valid_start_periods, p + 1))
+                        if (a_id, d, sp) in self.starts
                     ]
-                    if covering_starts:
+                    if not covering_starts:
+                        self.occupies[a_id, d, p] = None
+                    elif len(covering_starts) == 1:
+                        self.occupies[a_id, d, p] = covering_starts[0]
+                    else:
                         occ_var = self.model.NewBoolVar(f"occ_{a_id}_d{d}_p{p}")
                         self.model.Add(occ_var == sum(covering_starts))
                         self.occupies[a_id, d, p] = occ_var
-                    else:
-                        self.occupies[a_id, d, p] = None
-
-            # ตัวแปรห้องเรียน
-            primary_grp = self.groups[a.primary_group_id]
-            total_students = primary_grp.student_count
-            if a.secondary_group_id and a.secondary_group_id in self.groups:
-                total_students += self.groups[a.secondary_group_id].student_count
-
-            valid_rooms = [
-                r for r in self.rooms.values()
-                if r.room_type == a.course.required_room_type and r.capacity >= total_students
-            ]
-            if not valid_rooms:
-                valid_rooms = [r for r in self.rooms.values() if r.room_type == a.course.required_room_type]
-                if not valid_rooms:
-                    valid_rooms = list(self.rooms.values())
-
-            # ล็อกห้องเรียนกรณีมีการระบุห้องตายตัว (Fixed Room)
-            fixed_room_id = getattr(a, "fixed_room_id", None)
-            if getattr(a, "is_pinned", False) and fixed_room_id and fixed_room_id in self.rooms:
-                valid_rooms = [self.rooms[fixed_room_id]]
-
-            room_vars = []
-            for r in valid_rooms:
-                r_var = self.model.NewBoolVar(f"room_{a_id}_{r.id}")
-                self.assigned_room[a_id, r.id] = r_var
-                room_vars.append(r_var)
-            self.model.AddExactlyOne(room_vars)
 
             # ตัวแปร Block Activation
-            primary_grp = self.groups[a.primary_group_id]
             if a.is_rotation:
-                # วิชาฐานหมุนเวียน (Micro-block rotation) ให้เลือกลงเพียง 1 บล็อกในบล็อกที่กลุ่มเรียนนั้น active
                 rotation_block_vars = []
                 for b in range(self.num_blocks):
-                    b_var = self.model.NewBoolVar(f"block_{a_id}_b{b}")
-                    self.block_active[a_id, b] = b_var
                     if b in primary_grp.active_blocks:
+                        b_var = self.model.NewBoolVar(f"block_{a_id}_b{b}")
+                        self.block_active[a_id, b] = b_var
                         rotation_block_vars.append(b_var)
-                    else:
-                        # กลุ่มไม่เรียนในบล็อกนี้
-                        self.model.Add(b_var == 0)
-                # ต้องเลือกเรียนใน 1 บล็อก
                 self.model.AddExactlyOne(rotation_block_vars)
             else:
-                # วิชาปกติ (Non-rotation)
                 for b in range(self.num_blocks):
-                    b_var = self.model.NewBoolVar(f"block_{a_id}_b{b}")
-                    self.block_active[a_id, b] = b_var
-                    # ปวส. ไม่ active ใน block 5 (สัปดาห์ 16-18)
                     if b in primary_grp.active_blocks:
+                        b_var = self.model.NewBoolVar(f"block_{a_id}_b{b}")
+                        self.block_active[a_id, b] = b_var
                         self.model.Add(b_var == 1)
-                    else:
-                        self.model.Add(b_var == 0)
 
         # 2. Constraints การจัดตาราง
         self._add_group_conflict_constraints()
         self._add_teacher_conflict_constraints()
-        self._add_room_conflict_constraints()
+        self._add_room_capacity_constraints()
         self._add_rotation_base_constraints()
         self._add_soft_preferences()
 
@@ -184,7 +160,6 @@ class TimetableSolver:
         และควบคุมคาบเรียนต่อวันไม่เกิน 8 คาบ (ไม่มากไป) เพื่อสุขภาพการเรียนรู้ของนักศึกษา
         """
         for g_id, grp in self.groups.items():
-            # ค้นหาวิชาที่กลุ่มนี้มีส่วนร่วม (ทั้งเดี่ยว และ เรียนรวม)
             grp_assignments = [
                 a_id for a_id, a in self.assignments.items()
                 if a.primary_group_id == g_id or a.secondary_group_id == g_id
@@ -198,24 +173,13 @@ class TimetableSolver:
                     for p in range(self.periods_per_day):
                         active_in_slot = []
                         for a_id in grp_assignments:
-                            occ = self.occupies.get((a_id, d, p))
-                            if occ is None:
-                                continue
-                            a = self.assignments[a_id]
-                            p_grp = self.groups[a.primary_group_id]
-                            if not a.is_rotation:
-                                if b in p_grp.active_blocks:
-                                    active_in_slot.append(occ)
-                            else:
-                                is_slot_active = self.model.NewBoolVar(f"g_{g_id}_b{b}_d{d}_p{p}_{a_id}")
-                                self.model.AddBoolAnd([occ, self.block_active[a_id, b]]).OnlyEnforceIf(is_slot_active)
-                                self.model.AddBoolOr([occ.Not(), self.block_active[a_id, b].Not()]).OnlyEnforceIf(is_slot_active.Not())
-                                active_in_slot.append(is_slot_active)
+                            act_v = self._get_active_var(a_id, b, d, p)
+                            if act_v is not None:
+                                active_in_slot.append(act_v)
                         if active_in_slot:
                             self.model.Add(sum(active_in_slot) <= 1)
                             daily_group_slots.extend(active_in_slot)
 
-                    # จำกัดคาบเรียนต่อวันของนักศึกษาไม่เกิน 8 คาบ (ไม่เกินเกณฑ์ความเหมาะสมต่อวัน และเว้นพักเที่ยง)
                     if daily_group_slots:
                         self.model.Add(sum(daily_group_slots) <= 8)
 
@@ -228,7 +192,6 @@ class TimetableSolver:
         3. ห้ามจัดสอนในช่วงเวลาที่ไม่สะดวกสอน (Unavailable Slots)
         """
         for t_id, teacher in self.teachers.items():
-            # หากยังไม่ระบุครูผู้สอน (Placeholder) ไม่นำมาคิดการชนเวลาหรือภาระสอนรวม
             if t_id == "T_UNASSIGNED" or "(ยังไม่ระบุครูผู้สอน)" in teacher.name:
                 continue
 
@@ -246,29 +209,17 @@ class TimetableSolver:
                     for p in range(self.periods_per_day):
                         active_teach_slots = []
                         for a_id in t_assignments:
-                            occ = self.occupies.get((a_id, d, p))
-                            if occ is None:
-                                continue
-                            a = self.assignments[a_id]
-                            p_grp = self.groups[a.primary_group_id]
-                            if not a.is_rotation:
-                                if b in p_grp.active_blocks:
-                                    active_teach_slots.append(occ)
-                            else:
-                                is_teach_active = self.model.NewBoolVar(f"t_{t_id}_b{b}_d{d}_p{p}_{a_id}")
-                                self.model.AddBoolAnd([occ, self.block_active[a_id, b]]).OnlyEnforceIf(is_teach_active)
-                                self.model.AddBoolOr([occ.Not(), self.block_active[a_id, b].Not()]).OnlyEnforceIf(is_teach_active.Not())
-                                active_teach_slots.append(is_teach_active)
+                            act_v = self._get_active_var(a_id, b, d, p)
+                            if act_v is not None:
+                                active_teach_slots.append(act_v)
                         if active_teach_slots:
                             self.model.Add(sum(active_teach_slots) <= 1)
                             daily_teach_slots.extend(active_teach_slots)
 
-                    # จำกัดคาบสอนต่อวัน (ไม่เกิน max_periods_per_day เช่น 6 คาบ/วัน)
                     if daily_teach_slots:
                         self.model.Add(sum(daily_teach_slots) <= teacher.max_periods_per_day)
                         weekly_teach_slots.extend(daily_teach_slots)
 
-                # ขีดจำกัดคาบสอนต่อสัปดาห์ของวิทยาลัย (หัวหน้างาน <= 28, ทั่วไป <= 34, เพดานวิทยาลัย <= 35)
                 if weekly_teach_slots:
                     self.model.Add(sum(weekly_teach_slots) <= teacher.max_periods_per_week)
 
@@ -288,58 +239,55 @@ class TimetableSolver:
                         if occ is not None:
                             self.model.Add(occ == 0)
 
-    def _add_room_conflict_constraints(self):
-        """ห้องเรียน 1 ห้อง ใช้งานได้ไม่เกิน 1 วิชาในแต่ละ (block, day, period)"""
-        # 1. Precompute (assignment, room, d, p) active variable
-        assignment_room_slot = {}
-        for a_id, a in self.assignments.items():
-            candidate_rooms = [r_id for r_id in self.rooms if (a_id, r_id) in self.assigned_room]
-            is_single_room = (len(candidate_rooms) == 1)
-            for r_id in candidate_rooms:
-                r_var = self.assigned_room[a_id, r_id]
-                for d in range(self.days):
-                    for p in range(self.periods_per_day):
-                        occ = self.occupies.get((a_id, d, p))
-                        if occ is None:
-                            continue
-                        if is_single_room:
-                            assignment_room_slot[(a_id, r_id, d, p)] = occ
-                        else:
-                            var = self.model.NewBoolVar(f"ar_{a_id}_{r_id}_{d}_{p}")
-                            self.model.AddBoolAnd([occ, r_var]).OnlyEnforceIf(var)
-                            self.model.AddBoolOr([occ.Not(), r_var.Not()]).OnlyEnforceIf(var.Not())
-                            assignment_room_slot[(a_id, r_id, d, p)] = var
+    def _add_room_capacity_constraints(self):
+        """ห้องเรียน: จำกัดจำนวนวิชาที่เรียนพร้อมกันตามความจุห้องแต่ละประเภท (Room Capacity by RoomType)
+        และป้องกันการชนกันของวิชาที่ระบุห้องเรียนตายตัว (Fixed / Pinned Rooms)
+        """
+        # 1. จัดกลุ่มห้องเรียนตามประเภทห้อง
+        rooms_by_type = {}
+        for r in self.rooms.values():
+            rooms_by_type.setdefault(r.room_type, []).append(r)
 
-        # 2. Add room capacity constraints per block, day, period
-        for r_id in self.rooms:
-            cand_assignments = [
-                a_id for a_id in self.assignments
-                if (a_id, r_id) in self.assigned_room
+        for r_type, r_list in rooms_by_type.items():
+            cap = len(r_list)
+            type_ass = [
+                a_id for a_id, a in self.assignments.items()
+                if a.course.required_room_type == r_type
             ]
-            if len(cand_assignments) <= 1:
+            if len(type_ass) <= cap:
                 continue
 
             for b in range(self.num_blocks):
                 for d in range(self.days):
                     for p in range(self.periods_per_day):
-                        active_room_slots = []
-                        for a_id in cand_assignments:
-                            base_var = assignment_room_slot.get((a_id, r_id, d, p))
-                            if base_var is None:
-                                continue
-                            a = self.assignments[a_id]
-                            p_grp = self.groups[a.primary_group_id]
-                            if not a.is_rotation:
-                                if b in p_grp.active_blocks:
-                                    active_room_slots.append(base_var)
-                            else:
-                                is_rot_b = self.model.NewBoolVar(f"rrot_{a_id}_{r_id}_b{b}_{d}_{p}")
-                                self.model.AddBoolAnd([base_var, self.block_active[a_id, b]]).OnlyEnforceIf(is_rot_b)
-                                self.model.AddBoolOr([base_var.Not(), self.block_active[a_id, b].Not()]).OnlyEnforceIf(is_rot_b.Not())
-                                active_room_slots.append(is_rot_b)
+                        active_in_slot = []
+                        for a_id in type_ass:
+                            act_v = self._get_active_var(a_id, b, d, p)
+                            if act_v is not None:
+                                active_in_slot.append(act_v)
+                        if active_in_slot:
+                            self.model.Add(sum(active_in_slot) <= cap)
 
-                        if active_room_slots:
-                            self.model.Add(sum(active_room_slots) <= 1)
+        # 2. วิชาที่ล็อกห้องเรียนตายตัว (Pinned / Fixed Rooms) ต้องไม่ชนกันในห้องเดียวกัน
+        pinned_rooms = {}
+        for a_id, a in self.assignments.items():
+            f_room = getattr(a, "fixed_room_id", None)
+            if getattr(a, "is_pinned", False) and f_room and f_room in self.rooms:
+                pinned_rooms.setdefault(f_room, []).append(a_id)
+
+        for f_room, p_assignments in pinned_rooms.items():
+            if len(p_assignments) <= 1:
+                continue
+            for b in range(self.num_blocks):
+                for d in range(self.days):
+                    for p in range(self.periods_per_day):
+                        active_pinned = []
+                        for a_id in p_assignments:
+                            act_v = self._get_active_var(a_id, b, d, p)
+                            if act_v is not None:
+                                active_pinned.append(act_v)
+                        if active_pinned:
+                            self.model.Add(sum(active_pinned) <= 1)
 
     def _add_rotation_base_constraints(self):
         """สำหรับกลุ่มเดียวกัน วิชาฐานหมุนเวียนต้องอยู่คนละบล็อก"""
@@ -348,9 +296,10 @@ class TimetableSolver:
                 a_id for a_id, a in self.assignments.items()
                 if a.is_rotation and a.primary_group_id == g_id
             ]
-            # ในแต่ละบล็อก b กลุ่ม g_id ต้องมีวิชาหมุนเวียนเรียนได้ไม่เกิน 1 ฐาน
             for b in range(self.num_blocks):
-                self.model.Add(sum(self.block_active[a_id, b] for a_id in rot_assignments) <= 1)
+                act_b = [self.block_active[a_id, b] for a_id in rot_assignments if (a_id, b) in self.block_active]
+                if act_b:
+                    self.model.Add(sum(act_b) <= 1)
 
     def _add_soft_preferences(self):
         """กำหนด Objective Function:
@@ -368,6 +317,8 @@ class TimetableSolver:
             valid_start_periods = self.periods_per_day - duration + 1
             for d in range(self.days):
                 for p in range(valid_start_periods):
+                    if (a_id, d, p) not in self.starts:
+                        continue
                     cost = 0
                     if not (is_internship_grp and is_theory):
                         # ชอบให้วิชาปฏิบัติยาวเริ่มที่คาบ 1 (p=0) หรือ คาบ 2 (p=1) หรือ บ่ายคาบ 6 (p=5)
@@ -382,7 +333,70 @@ class TimetableSolver:
         if penalty_terms:
             self.model.Minimize(sum(penalty_terms))
 
-    def solve(self, time_limit_seconds: float = 30.0):
+    def _assign_rooms(self, results: list) -> None:
+        """จัดสรรห้องเรียนจริงที่ตรงประเภทและความจุให้กับแต่ละรายวิชาโดยไม่มีการชนเวลา"""
+        assigned = {}
+        # 1. วิชาที่ล็อกห้องเรียนตายตัว (Pinned Room)
+        for r in results:
+            a = r["assignment"]
+            f_rid = getattr(a, "fixed_room_id", None)
+            if getattr(a, "is_pinned", False) and f_rid and f_rid in self.rooms:
+                assigned[a.id] = self.rooms[f_rid]
+                r["room"] = self.rooms[f_rid]
+
+        # 2. จัดกลุ่มห้องเรียนตามประเภท
+        rooms_by_type = {}
+        for room in self.rooms.values():
+            rooms_by_type.setdefault(room.room_type, []).append(room)
+
+        # 3. จัดสรรห้องเรียนให้วิชาที่ยังไม่ได้ระบุห้อง
+        for r_type, r_list in rooms_by_type.items():
+            unassigned = [
+                r for r in results
+                if r["assignment"].id not in assigned and r["assignment"].course.required_room_type == r_type
+            ]
+            unassigned.sort(key=lambda x: (x["day"], x["start_period"]))
+
+            for item in unassigned:
+                a = item["assignment"]
+                p_grp = self.groups[a.primary_group_id]
+                total_students = p_grp.student_count
+                if a.secondary_group_id and a.secondary_group_id in self.groups:
+                    total_students += self.groups[a.secondary_group_id].student_count
+
+                # เรียงลำดับห้อง: ห้องที่ความจุพอดีก่อน
+                sorted_rooms = sorted(
+                    r_list,
+                    key=lambda rm: (rm.capacity < total_students, rm.capacity)
+                )
+
+                chosen = None
+                for room in sorted_rooms:
+                    collision = False
+                    for other_id, other_room in assigned.items():
+                        if other_room.id == room.id:
+                            other_item = next(x for x in results if x["assignment"].id == other_id)
+                            # เช็กว่าเรียนในบล็อกเดียวกันหรือไม่
+                            if set(item["active_blocks"]) & set(other_item["active_blocks"]):
+                                if item["day"] == other_item["day"]:
+                                    s1 = item["start_period"]
+                                    e1 = s1 + item["duration"]
+                                    s2 = other_item["start_period"]
+                                    e2 = s2 + other_item["duration"]
+                                    if max(s1, s2) < min(e1, e2):
+                                        collision = True
+                                        break
+                    if not collision:
+                        chosen = room
+                        break
+
+                if not chosen:
+                    chosen = r_list[0] if r_list else list(self.rooms.values())[0]
+
+                assigned[a.id] = chosen
+                item["room"] = chosen
+
+    def solve(self, time_limit_seconds: float = 20.0):
         self.solver.parameters.max_time_in_seconds = time_limit_seconds
         self.solver.parameters.num_search_workers = 1
         self.solver.parameters.linearization_level = 0
@@ -399,32 +413,31 @@ class TimetableSolver:
         for a_id, a in self.assignments.items():
             chosen_day = -1
             chosen_start_period = -1
+            valid_start_periods = self.periods_per_day - a.course.periods_per_session + 1
             for d in range(self.days):
-                for p in range(self.periods_per_day - a.course.periods_per_session + 1):
-                    if self.solver.BooleanValue(self.starts[a_id, d, p]):
+                for p in range(valid_start_periods):
+                    if (a_id, d, p) in self.starts and self.solver.BooleanValue(self.starts[a_id, d, p]):
                         chosen_day = d
                         chosen_start_period = p
                         break
                 if chosen_day != -1:
                     break
 
-            chosen_room = None
-            for (ass_id, r_id), r_var in self.assigned_room.items():
-                if ass_id == a_id and self.solver.BooleanValue(r_var):
-                    chosen_room = self.rooms[r_id]
-                    break
-
-            active_blocks = [
-                b for b in range(self.num_blocks)
-                if self.solver.BooleanValue(self.block_active[a_id, b])
-            ]
+            primary_grp = self.groups[a.primary_group_id]
+            if a.is_rotation:
+                active_blocks = [
+                    b for b in primary_grp.active_blocks
+                    if (a_id, b) in self.block_active and self.solver.BooleanValue(self.block_active[a_id, b])
+                ]
+            else:
+                active_blocks = list(primary_grp.active_blocks)
 
             results.append({
                 "assignment": a,
                 "day": chosen_day,
                 "start_period": chosen_start_period,
                 "duration": a.course.periods_per_session,
-                "room": chosen_room,
+                "room": None,
                 "teacher": self.teachers[a.teacher_id],
                 "secondary_teacher": self.teachers.get(a.secondary_teacher_id) if a.secondary_teacher_id else None,
                 "active_blocks": active_blocks,
@@ -435,4 +448,6 @@ class TimetableSolver:
                 "external_teacher_name": getattr(a, "external_teacher_name", None)
             })
 
+        # จัดสรรห้องเรียนให้ทุกรายวิชาอย่างเป็นระบบ
+        self._assign_rooms(results)
         return results

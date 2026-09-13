@@ -179,9 +179,9 @@ class TimetableSolver:
                             self.model.Add(sum(active_in_slot) <= 1)
                             daily_group_slots.extend(active_in_slot)
 
-                    # จำกัดคาบเรียนต่อวันของนักศึกษาไม่เกิน 7 คาบ (ไม่มากไป และเว้นพักเที่ยง)
+                    # จำกัดคาบเรียนต่อวันของนักศึกษาไม่เกิน 8 คาบ (ไม่เกินเกณฑ์ความเหมาะสมต่อวัน และเว้นพักเที่ยง)
                     if daily_group_slots:
-                        self.model.Add(sum(daily_group_slots) <= 7)
+                        self.model.Add(sum(daily_group_slots) <= 8)
 
     def _add_teacher_conflict_constraints(self):
         """ครู 1 คน สอนได้ไม่เกิน 1 คาบในแต่ละ (block, day, period)
@@ -192,6 +192,10 @@ class TimetableSolver:
         3. ห้ามจัดสอนในช่วงเวลาที่ไม่สะดวกสอน (Unavailable Slots)
         """
         for t_id, teacher in self.teachers.items():
+            # หากยังไม่ระบุครูผู้สอน (Placeholder) ไม่นำมาคิดการชนเวลาหรือภาระสอนรวม
+            if t_id == "T_UNASSIGNED" or "(ยังไม่ระบุครูผู้สอน)" in teacher.name:
+                continue
+
             t_assignments = [
                 a_id for a_id, a in self.assignments.items()
                 if a.teacher_id == t_id or a.secondary_teacher_id == t_id
@@ -227,7 +231,7 @@ class TimetableSolver:
 
         # ห้ามจัดสอนในช่วงเวลาที่ไม่สะดวกสอน (Unavailable Slots) ของทั้งครูหลักและครูร่วมสอน
         for t_id, teacher in self.teachers.items():
-            if not teacher.unavailable_slots:
+            if t_id == "T_UNASSIGNED" or "(ยังไม่ระบุครูผู้สอน)" in teacher.name or not teacher.unavailable_slots:
                 continue
             t_assignments = [
                 a_id for a_id, a in self.assignments.items()

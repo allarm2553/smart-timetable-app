@@ -2542,9 +2542,15 @@
         const name = c?.name || '';
         const dur = c?.periods_per_session || 1;
         let tName = teacherMap[a.teacher_id] || a.teacher_id;
+        let tDisplay = '';
+        if (a.teacher_id === 'T_UNASSIGNED' || tName === '(ยังไม่ระบุครูผู้สอน)') {
+          tDisplay = '<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-300"><span class="text-amber-600">⚠️</span> รอมอบหมายครู</span>';
+        } else {
+          tDisplay = `<span class="font-medium text-slate-800">${tName}</span>`;
+        }
         if (a.secondary_teacher_id) {
           const t2Name = teacherMap[a.secondary_teacher_id] || a.secondary_teacher_id;
-          tName += ` / ${t2Name} <span class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-teal-100 text-teal-800 border border-teal-200 ml-1">👥 ครูร่วม</span>`;
+          tDisplay += ` / ${t2Name} <span class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-teal-100 text-teal-800 border border-teal-200 ml-1">👥 ครูร่วม</span>`;
         }
         let grpName = groupMap[a.primary_group_id] || a.primary_group_id || '-';
         if (a.secondary_group_id) {
@@ -2568,7 +2574,7 @@
             <td class="py-2.5 px-3">${typeBadge}</td>
             <td class="py-2.5 px-3 font-bold text-slate-700">${dur} คาบ</td>
             <td class="py-2.5 px-3 font-medium text-slate-800">${grpName}</td>
-            <td class="py-2.5 px-3 text-slate-700">${tName}</td>
+            <td class="py-2.5 px-3">${tDisplay}</td>
             <td class="py-2.5 px-3 text-right">
               <div class="flex items-center justify-end space-x-1.5">
                 <button onclick="openEditCourseModal('${a.id}')" class="text-blue-600 hover:text-blue-800 p-1 hover:bg-blue-50 rounded" title="แก้ไขรายวิชาและผู้สอน">

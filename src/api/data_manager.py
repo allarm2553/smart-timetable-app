@@ -116,6 +116,25 @@ class TimetableDataManager:
     def get_all(self) -> Dict[str, Any]:
         return self.get_all_data()
 
+    def import_project_data(self, project_data: Dict[str, Any]):
+        """นำเข้าข้อมูลโปรเจ็คทั้งระบบ (ครู, ห้อง, กลุ่มเรียน, วิชา, แผนการสอน) และบันทึกลงไฟล์"""
+        if not isinstance(project_data, dict):
+            return
+        if "teachers" in project_data and isinstance(project_data["teachers"], list):
+            self.teachers = project_data["teachers"]
+        if "rooms" in project_data and isinstance(project_data["rooms"], list):
+            self.rooms = project_data["rooms"]
+        if "groups" in project_data and isinstance(project_data["groups"], list):
+            self.groups = project_data["groups"]
+        if "courses" in project_data:
+            if isinstance(project_data["courses"], list):
+                self.courses = {c["id"]: c for c in project_data["courses"] if isinstance(c, dict) and "id" in c}
+            elif isinstance(project_data["courses"], dict):
+                self.courses = project_data["courses"]
+        if "assignments" in project_data and isinstance(project_data["assignments"], list):
+            self.assignments = project_data["assignments"]
+        self._save()
+
     # Teachers CRUD
     def add_teacher(self, teacher_data: Dict[str, Any]) -> Dict[str, Any]:
         t_id = teacher_data.get("id") or f"T_{len(self.teachers)+1}"

@@ -712,4 +712,26 @@ def api_post_workload_analytics(req: Dict[str, Any]):
     service = WorkloadAnalyticsService(schedule_items, config_data)
     return service.compute_analytics()
 
+@app.get("/api/project/export")
+def api_export_project():
+    """ส่งออกข้อมูลโปรเจ็คทั้งระบบ (ครู, ห้อง, กลุ่มเรียน, แผนการสอน) เป็น JSON"""
+    all_data = data_manager.get_all_data()
+    return {
+        "version": "2.0",
+        "app_name": "Smart Timetable Vocational",
+        "exported_at": datetime.now().isoformat(),
+        "project_data": all_data
+    }
+
+@app.post("/api/project/import")
+def api_import_project(req: Dict[str, Any]):
+    """นำเข้าข้อมูลโปรเจ็คเข้าสู่ฐานข้อมูลระบบ"""
+    project_data = req.get("project_data", req)
+    data_manager.import_project_data(project_data)
+    return {
+        "is_success": True,
+        "message": "นำเข้าข้อมูลโปรเจ็คสำเร็จ",
+        "data": data_manager.get_all_data()
+    }
+
 

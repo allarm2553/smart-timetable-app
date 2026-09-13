@@ -178,6 +178,20 @@
 
             <div class="border-t border-slate-100 my-1.5"></div>
 
+            <!-- Option 4: Full Project File (.json) for Sharing -->
+            <button onclick="exportProjectFile()" class="w-full text-left px-3.5 py-2 hover:bg-blue-50 text-slate-800 flex items-start space-x-2.5 transition">
+              <span class="p-1.5 bg-blue-100 text-blue-700 rounded-md shrink-0 mt-0.5">
+                <i data-lucide="file-json" class="w-4 h-4 text-blue-600"></i>
+              </span>
+              <div>
+                <div class="font-bold text-blue-900 flex items-center space-x-1.5">
+                  <span>ส่งออกไฟล์โปรเจ็ค (.json)</span>
+                  <span class="px-1.5 py-0.2 bg-blue-200 text-blue-900 text-[9px] font-bold rounded">แชร์งาน</span>
+                </div>
+                <div class="text-[10px] text-slate-500 mt-0.5">ส่งต่อให้เพื่อนร่วมงานเปิดแก้ไข/ย้ายคาบต่อได้ 100%</div>
+              </div>
+            </button>
+
             <!-- Legacy Fast Export -->
             <button onclick="exportCurrentExcel()" class="w-full text-left px-3.5 py-1.5 hover:bg-slate-100 text-slate-600 flex items-center space-x-2.5 transition text-[11px]">
               <i data-lucide="file-code" class="w-3.5 h-3.5 text-slate-400"></i>
@@ -236,12 +250,24 @@
           <span id="statusInfo">สถานะ: จัดตารางสมบูรณ์ (OPTIMAL)</span>
           <span class="text-blue-600 font-semibold ml-2">💡 คลิกที่กล่องวิชาสีเหลืองเพื่อปรับย้ายหรือสลับคาบเรียน</span>
         </div>
-        <div class="flex items-center space-x-3 flex-wrap gap-y-1">
+        <div class="flex items-center space-x-2 flex-wrap gap-y-1">
           <!-- Auto-save status badge -->
           <div id="storageStatusBadge" class="hidden flex items-center space-x-1.5 px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200 text-[11px] font-medium" title="ระบบบันทึกความคืบหน้าไว้ในเครื่องของคุณอัตโนมัติ">
             <i data-lucide="save" class="w-3.5 h-3.5 text-emerald-600"></i>
             <span id="storageStatusText">บันทึกอัตโนมัติแล้ว</span>
           </div>
+
+          <!-- Project Share Buttons -->
+          <button onclick="exportProjectFile()" title="ดาวน์โหลดไฟล์โปรเจ็ค (.json) พร้อมตารางและการสลับปรับย้าย เพื่อส่งต่อให้ผู้อื่นแก้ไขต่อได้ 100%" class="flex items-center space-x-1 px-2.5 py-1 rounded-md bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-[11px] font-semibold transition active:scale-95 font-display">
+            <i data-lucide="download" class="w-3.5 h-3.5 text-blue-600"></i>
+            <span>ส่งออกโปรเจ็ค (.json)</span>
+          </button>
+          <button onclick="document.getElementById('projectFileInput').click()" title="เปิดไฟล์โปรเจ็ค (.json) ที่ได้รับจากเพื่อนร่วมงาน เพื่อนำมาจัด/แก้ไขต่อทันที" class="flex items-center space-x-1 px-2.5 py-1 rounded-md bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-[11px] font-semibold transition active:scale-95 font-display">
+            <i data-lucide="upload" class="w-3.5 h-3.5 text-indigo-600"></i>
+            <span>นำเข้าไฟล์โปรเจ็ค (.json)</span>
+          </button>
+          <input type="file" id="projectFileInput" accept=".json" class="hidden" onchange="importProjectFile(event)">
+
           <!-- Reset button -->
           <button onclick="resetToDefault()" title="ล้างข้อมูลที่จัดค้างไว้ในเครื่อง แล้วคำนวณใหม่จากข้อมูลตั้งต้น" class="flex items-center space-x-1 px-2.5 py-1 rounded-md bg-slate-100 hover:bg-rose-50 hover:text-rose-700 hover:border-rose-300 border border-slate-300 text-slate-600 text-[11px] font-semibold transition active:scale-95 font-display">
             <i data-lucide="rotate-ccw" class="w-3.5 h-3.5 text-slate-500"></i>
@@ -630,6 +656,124 @@
       updateStorageStatusBadge(null);
       showToast("↺ ล้างข้อมูลในเครื่องแล้ว กำลังคำนวณตารางเริ่มต้นใหม่...", "info", 2500);
       await runSolver();
+    }
+
+    // --- Project Export / Import (.json) for Collaboration ---
+    async function exportProjectFile() {
+      const menu = document.getElementById('excelDropdownMenu');
+      if (menu) menu.classList.add('hidden');
+
+      if (!solveResult || !solveResult.schedule) {
+        showToast("⚠️ กรุณารอระบบจัดตารางให้เสร็จก่อนส่งออก", "warning");
+        return;
+      }
+
+      showToast("⏳ กำลังเตรียมไฟล์โปรเจ็ค (.json)...", "info", 2000);
+
+      try {
+        let pData = benchmarkData;
+        try {
+          const res = await fetch('/api/project/export');
+          if (res.ok) {
+            const json = await res.json();
+            if (json.project_data) pData = json.project_data;
+          }
+        } catch (e) {
+          console.warn("Using current benchmarkData for export:", e);
+        }
+
+        const projectBundle = {
+          app_name: "Smart Timetable Vocational",
+          version: "2.0",
+          exported_at: new Date().toISOString(),
+          project_data: pData,
+          solveResult: solveResult,
+          view_state: {
+            currentBlock: currentBlock,
+            currentViewMode: currentViewMode,
+            currentEntityId: currentEntityId
+          }
+        };
+
+        const jsonStr = JSON.stringify(projectBundle, null, 2);
+        const blob = new Blob([jsonStr], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        const dateStr = new Date().toISOString().slice(0, 10);
+        const fn = `Smart_Timetable_Project_${dateStr}.json`;
+        a.href = url;
+        a.download = fn;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+
+        showToast(`💾 ส่งออกไฟล์โปรเจ็ค '${fn}' สำเร็จ! ส่งต่อให้เพื่อนร่วมงานเปิดแก้ไขต่อได้ 100%`, "success", 5000);
+      } catch (err) {
+        showToast("❌ ส่งออกไฟล์ไม่สำเร็จ: " + err.message, "error");
+      }
+    }
+
+    async function importProjectFile(event) {
+      const file = event.target.files?.[0];
+      if (!file) return;
+
+      showToast("⏳ กำลังอ่านและนำเข้าไฟล์โปรเจ็ค...", "info", 3000);
+
+      try {
+        const text = await file.text();
+        const bundle = JSON.parse(text);
+
+        if (!bundle || (!bundle.project_data && !bundle.solveResult)) {
+          throw new Error("โครงสร้างไฟล์โปรเจ็คไม่ถูกต้อง");
+        }
+
+        // 1. ซิงค์ฐานข้อมูลระบบ (Backend) หากมีข้อมูลตั้งต้น
+        if (bundle.project_data) {
+          try {
+            const res = await fetch('/api/project/import', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ project_data: bundle.project_data })
+            });
+            if (res.ok) {
+              const dataRes = await fetch('/api/benchmark');
+              benchmarkData = await dataRes.json();
+            }
+          } catch (beErr) {
+            console.warn("Backend sync failed, continuing with client state:", beErr);
+            benchmarkData = bundle.project_data;
+          }
+        }
+
+        // 2. กู้คืนตารางเรียนพร้อมผลลัพธ์การสลับ/ย้ายคาบ
+        if (bundle.solveResult && Array.isArray(bundle.solveResult.schedule)) {
+          solveResult = bundle.solveResult;
+        }
+
+        // 3. กู้คืนมุมมองที่เคยเลือกไว้
+        if (bundle.view_state) {
+          if (bundle.view_state.currentBlock) currentBlock = bundle.view_state.currentBlock;
+          if (bundle.view_state.currentViewMode) currentViewMode = bundle.view_state.currentViewMode;
+          if (bundle.view_state.currentEntityId) currentEntityId = bundle.view_state.currentEntityId;
+        }
+
+        // 4. บันทึกเข้า localStorage ทันที และเรนเดอร์หน้าจอใหม่
+        saveStateToLocalStorage();
+        renderBlockButtons();
+        setViewMode(currentViewMode);
+        
+        document.getElementById('statusInfo').textContent = `สถานะ: นำเข้าไฟล์โปรเจ็คสำเร็จ (${solveResult?.status || 'OK'})`;
+        document.getElementById('statTime').textContent = `${solveResult?.execution_time_seconds || '-'} วินาที`;
+        document.getElementById('statLessons').textContent = `${solveResult?.total_lessons_scheduled || solveResult?.schedule?.length || 0}`;
+
+        showToast(`✅ นำเข้าไฟล์ '${file.name}' สำเร็จ! ตารางพร้อมแก้ไขต่อทันที`, "success", 5000);
+      } catch (err) {
+        alert("ไม่สามารถนำเข้าไฟล์โปรเจ็คได้: " + err.message);
+        showToast("❌ นำเข้าไฟล์ไม่สำเร็จ: " + err.message, "error");
+      } finally {
+        event.target.value = "";
+      }
     }
 
     async function init() {
@@ -2898,6 +3042,20 @@
 
       <!-- Modal Body -->
       <div class="p-6 space-y-4">
+
+        <!-- Alternative: Import Project JSON Bundle -->
+        <div class="bg-blue-50 border border-blue-200 rounded-lg p-3 flex items-center justify-between">
+          <div class="flex items-center space-x-2.5">
+            <i data-lucide="file-json" class="w-4 h-4 text-blue-600 shrink-0"></i>
+            <div>
+              <div class="text-xs font-bold text-blue-900 font-display">มีไฟล์โปรเจ็ค (.json) จากเพื่อนร่วมงาน?</div>
+              <div class="text-[11px] text-blue-700">นำเข้าทั้งตาราง ข้อมูลครู/ห้อง/กลุ่ม และรายการสลับคาบที่เพื่อนทำไว้ทันที</div>
+            </div>
+          </div>
+          <button onclick="closeImportModal(); document.getElementById('projectFileInput').click()" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded shadow-xs font-display shrink-0 transition">
+            เปิดไฟล์โปรเจ็ค (.json)
+          </button>
+        </div>
         
         <!-- Step 1: Download Template -->
         <div class="bg-indigo-50 border border-indigo-200 rounded-lg p-3.5 flex items-center justify-between">

@@ -1,0 +1,356 @@
+{
+  "teachers": [
+    {
+      "id": "T_PONG",
+      "name": "พงษ์สถิต",
+      "max_periods_per_day": 6,
+      "unavailable_slots": []
+    },
+    {
+      "id": "T_PO",
+      "name": "อ.ป้อ",
+      "max_periods_per_day": 6,
+      "unavailable_slots": []
+    },
+    {
+      "id": "T_JIRA",
+      "name": "จิรวัฒน์",
+      "max_periods_per_day": 6,
+      "unavailable_slots": []
+    },
+    {
+      "id": "T_ANU",
+      "name": "อนุชา",
+      "max_periods_per_day": 6,
+      "unavailable_slots": []
+    },
+    {
+      "id": "T_CHOO",
+      "name": "ชูสกุล",
+      "max_periods_per_day": 6,
+      "unavailable_slots": []
+    },
+    {
+      "id": "T_PAT",
+      "name": "ภัสพร",
+      "max_periods_per_day": 6,
+      "unavailable_slots": []
+    },
+    {
+      "id": "T_NOPA",
+      "name": "นพนันท์",
+      "max_periods_per_day": 6,
+      "unavailable_slots": []
+    },
+    {
+      "id": "T_THOD",
+      "name": "เทอดศักดิ์",
+      "max_periods_per_day": 6,
+      "unavailable_slots": []
+    },
+    {
+      "id": "T_THONG",
+      "name": "ทองคำ",
+      "max_periods_per_day": 6,
+      "unavailable_slots": []
+    }
+  ],
+  "rooms": [
+    {
+      "id": "ROOM_545",
+      "name": "545",
+      "room_type": "CLASSROOM",
+      "capacity": 35
+    },
+    {
+      "id": "ROOM_546",
+      "name": "546 (ห้องบรรยายใหญ่)",
+      "room_type": "LECTURE_HALL",
+      "capacity": 80
+    },
+    {
+      "id": "ROOM_547",
+      "name": "547",
+      "room_type": "CLASSROOM",
+      "capacity": 35
+    },
+    {
+      "id": "LAB_ENG",
+      "name": "ศูนย์ฝึกเครื่องยนต์",
+      "room_type": "LAB_ENGINE",
+      "capacity": 45
+    },
+    {
+      "id": "LAB_ELEC",
+      "name": "ศูนย์ฝึกไฟฟ้า",
+      "room_type": "LAB_ELECTRIC",
+      "capacity": 45
+    }
+  ],
+  "groups": [
+    {
+      "id": "G_CHO_1_1",
+      "name": "ชอ.1/1",
+      "level": "VOC_CERT",
+      "student_count": 20
+    },
+    {
+      "id": "G_CHO_1_2",
+      "name": "ชอ.1/2",
+      "level": "VOC_CERT",
+      "student_count": 20
+    },
+    {
+      "id": "G_CHO_1_3",
+      "name": "ชอ.1/3",
+      "level": "VOC_CERT",
+      "student_count": 19
+    },
+    {
+      "id": "G_CHO_3_3",
+      "name": "ชอ.3/3",
+      "level": "VOC_CERT",
+      "student_count": 20
+    },
+    {
+      "id": "G_PVS_1",
+      "name": "ชส.1/1 (ปวส.)",
+      "level": "HIGH_VOC_CERT",
+      "student_count": 25
+    }
+  ],
+  "courses": {
+    "C_20100_100": {
+      "id": "C_20100_100",
+      "name": "ภาษาอังกฤษเพื่อการสื่อสาร",
+      "code": "20100-100",
+      "course_type": "THEORY",
+      "periods_per_session": 1,
+      "sessions_per_week": 1,
+      "required_room_type": "LECTURE_HALL",
+      "allow_merge": true,
+      "base_id": null
+    },
+    "C_20105_202": {
+      "id": "C_20105_202",
+      "name": "ทฤษฎีเครื่องยนต์แก๊สโซลีน",
+      "code": "20105-202",
+      "course_type": "THEORY",
+      "periods_per_session": 1,
+      "sessions_per_week": 1,
+      "required_room_type": "CLASSROOM",
+      "allow_merge": false,
+      "base_id": null
+    },
+    "C_20105_201": {
+      "id": "C_20105_201",
+      "name": "คณิตศาสตร์ช่างยนต์",
+      "code": "20105-201",
+      "course_type": "THEORY",
+      "periods_per_session": 1,
+      "sessions_per_week": 1,
+      "required_room_type": "CLASSROOM",
+      "allow_merge": false,
+      "base_id": null
+    },
+    "C_P_20105_2023": {
+      "id": "C_P_20105_2023",
+      "name": "งานระบบฉีดเชื้อเพลิงอิเล็กทรอนิกส์",
+      "code": "ป. 20105-2023",
+      "course_type": "PRACTICE",
+      "periods_per_session": 3,
+      "sessions_per_week": 1,
+      "required_room_type": "CLASSROOM",
+      "allow_merge": false,
+      "base_id": null
+    },
+    "C_P_20100_1005": {
+      "id": "C_P_20100_1005",
+      "name": "งานเครื่องยนต์แก๊สโซลีน",
+      "code": "ป. 20100-1005",
+      "course_type": "ROTATION_BASE",
+      "periods_per_session": 3,
+      "sessions_per_week": 1,
+      "required_room_type": "CLASSROOM",
+      "allow_merge": false,
+      "base_id": "BASE_GAS"
+    },
+    "C_P_20100_1007": {
+      "id": "C_P_20100_1007",
+      "name": "งานเครื่องยนต์ดีเซล",
+      "code": "ป. 20100-1007",
+      "course_type": "ROTATION_BASE",
+      "periods_per_session": 3,
+      "sessions_per_week": 1,
+      "required_room_type": "CLASSROOM",
+      "allow_merge": false,
+      "base_id": "BASE_DIESEL"
+    },
+    "C_P_20105_2017": {
+      "id": "C_P_20105_2017",
+      "name": "งานปรับแต่งเครื่องยนต์",
+      "code": "ป. 20105-2017",
+      "course_type": "PRACTICE",
+      "periods_per_session": 3,
+      "sessions_per_week": 1,
+      "required_room_type": "CLASSROOM",
+      "allow_merge": false,
+      "base_id": null
+    },
+    "C_P_20100_2204": {
+      "id": "C_P_20100_2204",
+      "name": "งานเครื่องล่างและส่งกำลังยานยนต์",
+      "code": "ป. 20100-2204",
+      "course_type": "PRACTICE",
+      "periods_per_session": 3,
+      "sessions_per_week": 1,
+      "required_room_type": "CLASSROOM",
+      "allow_merge": false,
+      "base_id": null
+    },
+    "C_P_20000_2005": {
+      "id": "C_P_20000_2005",
+      "name": "กิจกรรมลูกเสือ/พัฒนาทักษะ",
+      "code": "ป. 20000-2005",
+      "course_type": "PRACTICE",
+      "periods_per_session": 2,
+      "sessions_per_week": 1,
+      "required_room_type": "CLASSROOM",
+      "allow_merge": false,
+      "base_id": null
+    },
+    "C_PVS_30101": {
+      "id": "C_PVS_30101",
+      "name": "เทคโนโลยียานยนต์สมัยใหม่ (ปวส.)",
+      "code": "ป. 30101-2001",
+      "course_type": "PRACTICE",
+      "periods_per_session": 4,
+      "sessions_per_week": 1,
+      "required_room_type": "LAB_ENGINE",
+      "allow_merge": false,
+      "base_id": null
+    }
+  },
+  "assignments": [
+    {
+      "id": "L_ENG_MERGE",
+      "course_id": "C_20100_100",
+      "primary_group_id": "G_CHO_1_1",
+      "teacher_id": "T_PONG",
+      "secondary_teacher_id": null,
+      "secondary_group_id": "G_CHO_1_2",
+      "is_rotation": false,
+      "teaching_mode": "SINGLE"
+    },
+    {
+      "id": "L_103_THEORY_1",
+      "course_id": "C_20105_202",
+      "primary_group_id": "G_CHO_1_3",
+      "teacher_id": "T_PONG",
+      "secondary_teacher_id": null,
+      "secondary_group_id": null,
+      "is_rotation": false,
+      "teaching_mode": "SINGLE"
+    },
+    {
+      "id": "L_103_PRAC_1",
+      "course_id": "C_P_20105_2023",
+      "primary_group_id": "G_CHO_1_3",
+      "teacher_id": "T_PONG",
+      "secondary_teacher_id": null,
+      "secondary_group_id": null,
+      "is_rotation": false,
+      "teaching_mode": "SINGLE"
+    },
+    {
+      "id": "L_103_PRAC_2",
+      "course_id": "C_P_20100_1005",
+      "primary_group_id": "G_CHO_1_3",
+      "teacher_id": "T_PO",
+      "secondary_teacher_id": null,
+      "secondary_group_id": null,
+      "is_rotation": true,
+      "teaching_mode": "SINGLE"
+    },
+    {
+      "id": "L_303_PRAC_1",
+      "course_id": "C_P_20100_1007",
+      "primary_group_id": "G_CHO_3_3",
+      "teacher_id": "T_JIRA",
+      "secondary_teacher_id": null,
+      "secondary_group_id": null,
+      "is_rotation": true,
+      "teaching_mode": "SINGLE"
+    },
+    {
+      "id": "L_303_PRAC_2",
+      "course_id": "C_P_20105_2017",
+      "primary_group_id": "G_CHO_3_3",
+      "teacher_id": "T_ANU",
+      "secondary_teacher_id": null,
+      "secondary_group_id": null,
+      "is_rotation": false,
+      "teaching_mode": "SINGLE"
+    },
+    {
+      "id": "L_303_ACT",
+      "course_id": "C_P_20000_2005",
+      "primary_group_id": "G_CHO_3_3",
+      "teacher_id": "T_PAT",
+      "secondary_teacher_id": null,
+      "secondary_group_id": null,
+      "is_rotation": false,
+      "teaching_mode": "SINGLE"
+    },
+    {
+      "id": "L_101_PRAC",
+      "course_id": "C_P_20100_1005",
+      "primary_group_id": "G_CHO_1_1",
+      "teacher_id": "T_CHOO",
+      "secondary_teacher_id": null,
+      "secondary_group_id": null,
+      "is_rotation": true,
+      "teaching_mode": "SINGLE"
+    },
+    {
+      "id": "L_102_PRAC",
+      "course_id": "C_P_20100_1005",
+      "primary_group_id": "G_CHO_1_2",
+      "teacher_id": "T_THONG",
+      "secondary_teacher_id": null,
+      "secondary_group_id": null,
+      "is_rotation": true,
+      "teaching_mode": "SINGLE"
+    },
+    {
+      "id": "L_101_CHASSIS",
+      "course_id": "C_P_20100_2204",
+      "primary_group_id": "G_CHO_1_1",
+      "teacher_id": "T_NOPA",
+      "secondary_teacher_id": null,
+      "secondary_group_id": null,
+      "is_rotation": false,
+      "teaching_mode": "SINGLE"
+    },
+    {
+      "id": "L_102_CHASSIS",
+      "course_id": "C_P_20100_2204",
+      "primary_group_id": "G_CHO_1_2",
+      "teacher_id": "T_PAT",
+      "secondary_teacher_id": null,
+      "secondary_group_id": null,
+      "is_rotation": false,
+      "teaching_mode": "SINGLE"
+    },
+    {
+      "id": "L_PVS_PRAC",
+      "course_id": "C_PVS_30101",
+      "primary_group_id": "G_PVS_1",
+      "teacher_id": "T_PONG",
+      "secondary_teacher_id": null,
+      "secondary_group_id": null,
+      "is_rotation": false,
+      "teaching_mode": "SINGLE"
+    }
+  ]
+}

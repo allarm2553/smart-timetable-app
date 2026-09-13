@@ -161,10 +161,15 @@ def test_process_import_vocational_xlsx():
     all_d = data_manager.get_all_data()
     assert len(all_d["courses"]) == 4
     for c in all_d["courses"]:
+        # Verify course name is NEVER equal to course code
+        assert c["name"] != c["code"]
+        assert "20000" not in c["name"] and "20105" not in c["name"]
         if c["code"] == "20000-1102":
+            assert c["name"] == "ภาษาไทยเพื่ออาชีพ"
             assert c["periods_per_session"] == 1
             assert c["course_type"] == "THEORY"
         elif c["code"] == "20105-2001":
+            assert c["name"] == "วงจรไฟฟ้ากระแสสลับ"
             assert c["periods_per_session"] == 5 # 1 + 4
             assert c["course_type"] == "PRACTICE"
 
@@ -173,6 +178,62 @@ def test_process_import_vocational_xlsx():
     assert solve_res.status_code == 200
     assert solve_res.json()["is_success"] is True
     print("✅ test_process_import_vocational_xlsx passed")
+
+def test_process_import_curriculum_with_title_and_subheaders():
+    data_manager.reset_to_default()
+    wb = openpyxl.Workbook()
+    # Sheet 1: Title with 'รหัส 69' and subheader
+    ws1 = wb.active
+    ws1.title = "1.2569"
+    ws1.append(["แผนการเรียนมุ่งสมรรถนะอาชีพ หมวดวิชา รหัส 69"]) # Title containing 'รหัส'
+    ws1.append(["สาขาวิชาช่างยนต์"])
+    ws1.append(["ภาคเรียนที่ 1 ปีการศึกษา 2569"])
+    ws1.append(["รหัสวิชา", "ภาคเรียนที่ 1/2569", "ท", "ป", "น"]) # Col 2 has semester title
+    ws1.append(["", "รายวิชา", "", "", ""]) # Subheader specifies 'รายวิชา'
+    ws1.append(["20000-1101", "ภาษาไทยเพื่อสื่อสาร", 1, 0, 1])
+    ws1.append(["20000-1201", "ภาษาอังกฤษเพื่อการสื่อสาร", 1, 1, 1])
+
+    # Sheet 2: Side-by-side tables (ใบปะหน้า)
+    ws2 = wb.create_sheet("ใบปะหน้า ปวช")
+    ws2.append(["ใบปะหน้าแผนการเรียน ปวช. 2567"])
+    ws2.append(["สาขาวิชาช่างยนต์"])
+    ws2.append([])
+    ws2.append(["รหัสวิชา", "รายวิชา", "ท", "ป", "น", "", "รหัสวิชา", "รายวิชา", "ท", "ป", "น"])
+    ws2.append(["20101-1001", "งานเครื่องยนต์แก๊สโซลีน", 1, 4, 3, "", "20101-2002", "งานเครื่องยนต์ดีเซล", 1, 4, 3])
+    ws2.append(["20101-1002", "งานระบบส่งกำลัง", 1, 4, 3, "", "20101-2003", "งานระบบเบรก", 1, 4, 3])
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    xlsx_bytes = buf.getvalue()
+
+    b64_content = base64.b64encode(xlsx_bytes).decode("utf-8")
+    payload = {
+        "filename": "curriculum_multi_sheet.xlsx",
+        "content_base64": b64_content,
+        "mode": "replace"
+    }
+    res = client.post("/api/import/process", json=payload)
+    assert res.status_code == 200
+    data = res.json()
+    assert data["is_success"] is True
+    assert data["imported_count"] == 6
+
+    all_d = data_manager.get_all_data()
+    course_map = {c["code"]: c["name"] for c in all_d["courses"]}
+    
+    # Verify accurate Thai names for all courses
+    assert course_map["20000-1101"] == "ภาษาไทยเพื่อสื่อสาร"
+    assert course_map["20000-1201"] == "ภาษาอังกฤษเพื่อการสื่อสาร"
+    assert course_map["20101-1001"] == "งานเครื่องยนต์แก๊สโซลีน"
+    assert course_map["20101-2002"] == "งานเครื่องยนต์ดีเซล"
+    assert course_map["20101-1002"] == "งานระบบส่งกำลัง"
+    assert course_map["20101-2003"] == "งานระบบเบรก"
+
+    for code, name in course_map.items():
+        assert name != code, f"Course {code} name should not be code!"
+        assert not name.startswith("วิชา 20"), f"Course {code} should have real title, got {name}"
+
+    print("✅ test_process_import_curriculum_with_title_and_subheaders passed")
 
 def test_process_import_replace_and_solve():
     # Use template CSV with replace mode
@@ -209,5 +270,6 @@ if __name__ == "__main__":
     test_process_import_append()
     test_process_import_filters_non_course_rows()
     test_process_import_vocational_xlsx()
+    test_process_import_curriculum_with_title_and_subheaders()
     test_process_import_replace_and_solve()
     print("\n🎉 ALL BULK IMPORTER TESTS PASSED SUCCESSFULLY! 🎉")

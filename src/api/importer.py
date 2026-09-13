@@ -139,7 +139,7 @@ class BulkDataImporter:
     def _parse_xlsx(cls, file_bytes: bytes) -> List[Dict[str, str]]:
         """
         Reads XLSX using openpyxl, automatically detecting header rows across sheets
-        and extracting study plan columns.
+        and extracting study plan columns (supporting multi-line sub-headers and side-by-side tables).
         """
         try:
             wb = openpyxl.load_workbook(io.BytesIO(file_bytes), data_only=True)
@@ -150,69 +150,122 @@ class BulkDataImporter:
                 if not ws.max_row or ws.max_row < 1:
                     continue
 
+                max_r = min(30, ws.max_row)
+                max_c = min(40, ws.max_column if ws.max_column else 15)
+
                 header_row_idx = None
-                col_map = {}
+                has_sub_header = False
+                blocks = []
 
-                max_r = min(25, ws.max_row)
-                max_c = min(30, ws.max_column if ws.max_column else 10)
-
-                # Scan up to row 25 to find the table header row
+                # Scan up to row 30 to find table header row
                 for r_idx in range(1, max_r + 1):
                     row_vals = [ws.cell(r_idx, c).value for c in range(1, max_c + 1)]
                     str_vals = [str(v).strip() if v is not None else "" for v in row_vals]
 
-                    has_code = any("รหัส" in v.lower() or "code" in v.lower() for v in str_vals)
-                    has_name = any("ชื่อ" in v.lower() or "รายวิชา" in v.lower() or "name" in v.lower() for v in str_vals)
+                    non_empty_count = sum(1 for v in str_vals if v)
+                    # Ignore single-line titles (e.g. document title on Row 1)
+                    if non_empty_count < 3:
+                        continue
 
-                    if has_code or (has_name and any(v in ["ท", "ป", "น", "หน่วยกิต", "คาบ", "periods"] for v in str_vals)):
+                    has_code_col = any(
+                        ("รหัส" in v.lower() and "วิชา" in v.lower()) or 
+                        v.lower() in ["รหัสวิชา", "code", "course_code", "course code"]
+                        for v in str_vals
+                    )
+                    has_hours = any(v in ["ท", "ป", "น", "หน่วยกิต", "คาบ", "จำนวนคาบ", "ชม."] for v in str_vals)
+                    has_name = any(any(n in v for n in ["รายวิชา", "ชื่อวิชา", "ชื่อรายวิชา", "course_name"]) for v in str_vals)
+
+                    if has_code_col and (has_name or has_hours):
                         header_row_idx = r_idx
-                        for c_idx, val in enumerate(str_vals, start=1):
-                            if val:
-                                col_map[c_idx] = val
+
+                        # Check if next row is a sub-header row (e.g. contains 'รายวิชา' under 'ภาคเรียน...')
+                        sub_vals = []
+                        if r_idx < ws.max_row:
+                            next_vals = [str(ws.cell(r_idx + 1, c).value or "").strip() for c in range(1, max_c + 1)]
+                            if not any(cls.is_valid_course_code(v) for v in next_vals if v):
+                                if any(k in "".join(next_vals) for k in ["รายวิชา", "ชื่อวิชา", "ท", "ป", "น"]):
+                                    has_sub_header = True
+                                    sub_vals = next_vals
+
+                        code_col_indices = [
+                            c_idx for c_idx, v in enumerate(str_vals, start=1)
+                            if ("รหัส" in v.lower() and "วิชา" in v.lower()) or v.lower() in ["รหัสวิชา", "code", "course_code"]
+                        ]
+                        if not code_col_indices:
+                            code_col_indices = [1]
+
+                        for b_i, start_c in enumerate(code_col_indices):
+                            end_c = code_col_indices[b_i + 1] - 1 if b_i + 1 < len(code_col_indices) else max_c
+                            b_map = {}
+                            for c in range(start_c, end_c + 1):
+                                h = str_vals[c - 1]
+                                sub_h = sub_vals[c - 1] if c - 1 < len(sub_vals) else ""
+                                final_h = h
+
+                                if has_sub_header and sub_h:
+                                    if any(k in sub_h for k in ["รายวิชา", "ชื่อวิชา"]):
+                                        final_h = sub_h
+                                    elif not h:
+                                        final_h = sub_h
+
+                                # Positional rule: column immediately following the course code column is the course name!
+                                if c == start_c + 1 and not any(k in final_h for k in ["ท", "ป", "น", "รหัส"]):
+                                    if not final_h or "ภาคเรียน" in final_h or "ปีการศึกษา" in final_h:
+                                        final_h = "รายวิชา"
+
+                                if final_h:
+                                    b_map[c] = final_h
+                            if b_map:
+                                blocks.append((start_c, end_c, b_map))
                         break
 
-                if header_row_idx is None:
-                    # Fallback to row 1
+                if not blocks:
                     header_row_idx = 1
-                    for c_idx in range(1, max_c + 1):
-                        val = ws.cell(1, c_idx).value
-                        if val is not None and str(val).strip():
-                            col_map[c_idx] = str(val).strip()
+                    col_map = {c: str(ws.cell(1, c).value or "").strip() for c in range(1, max_c + 1) if ws.cell(1, c).value}
+                    if col_map:
+                        blocks.append((1, max_c, col_map))
 
-                if not col_map:
+                if not blocks:
                     continue
 
-                # Read following data rows
-                for r_idx in range(header_row_idx + 1, ws.max_row + 1):
-                    row_dict = {}
-                    has_any_val = False
-                    for c_idx, h_name in col_map.items():
-                        val = ws.cell(r_idx, c_idx).value
-                        v_str = str(val).strip() if val is not None else ""
-                        if v_str.endswith(".0") and v_str[:-2].isdigit():
-                            v_str = v_str[:-2]
-                        if v_str:
-                            has_any_val = True
-                        row_dict[h_name] = v_str
+                data_start_row = header_row_idx + (2 if has_sub_header else 1)
 
-                    if has_any_val:
-                        row_dict["_sheet_name"] = sheet_name
-                        dict_rows.append(row_dict)
+                for r_idx in range(data_start_row, ws.max_row + 1):
+                    for start_c, end_c, b_map in blocks:
+                        row_dict = {}
+                        has_val = False
+                        for c_idx, h_name in b_map.items():
+                            val = ws.cell(r_idx, c_idx).value
+                            v_str = str(val).strip() if val is not None else ""
+                            if v_str.endswith(".0") and v_str[:-2].isdigit():
+                                v_str = v_str[:-2]
+                            if v_str:
+                                has_val = True
+                            row_dict[h_name] = v_str
+                        if has_val:
+                            row_dict["_sheet_name"] = sheet_name
+                            dict_rows.append(row_dict)
 
             return dict_rows
         except Exception as e:
             raise ValueError(f"เกิดข้อผิดพลาดในการเปิดไฟล์ Excel: {str(e)}")
 
     @classmethod
-    def _find_field(cls, row: Dict[str, str], aliases: List[str]) -> str:
+    def _find_field(cls, row: Dict[str, str], aliases: List[str], exclude_keywords: Optional[List[str]] = None) -> str:
         """
         Looks up a field using a list of aliases.
-        Performs exact match first, then substring match for aliases of len >= 2
-        to prevent single-letter aliases ('ท', 'ป', 'น') from matching words like 'ประเภทวิชา'.
+        Performs exact match first, then substring match for aliases of len >= 2.
+        If exclude_keywords are provided, any key containing an excluded keyword is rejected.
         """
+        excludes = [e.lower() for e in (exclude_keywords or [])]
+
+        def is_excluded(key: str) -> bool:
+            k = key.lower()
+            return any(ex in k for ex in excludes)
+
         # Pass 1: exact match
         for k, v in row.items():
-            if k.startswith("_"):
+            if k.startswith("_") or is_excluded(k):
                 continue
             k_clean = k.strip().lower()
             for a in aliases:
@@ -221,7 +274,7 @@ class BulkDataImporter:
 
         # Pass 2: substring match (alias must be in header key, len >= 2)
         for k, v in row.items():
-            if k.startswith("_"):
+            if k.startswith("_") or is_excluded(k):
                 continue
             k_clean = k.strip().lower()
             for a in aliases:
@@ -293,8 +346,8 @@ class BulkDataImporter:
         errors = []
 
         for idx, row in enumerate(rows, start=2):
-            code = cls._find_field(row, ["รหัสวิชา", "รหัส", "code", "course_code"])
-            name = cls._find_field(row, ["ชื่อวิชา", "รายวิชา", "name", "course_name", "วิชา"])
+            code = cls._find_field(row, ["รหัสวิชา", "รหัส", "code", "course_code"], exclude_keywords=["ชื่อ", "name"])
+            name = cls._find_field(row, ["ชื่อรายวิชา", "ชื่อวิชา", "รายวิชา", "course_name", "subject_name", "ชื่อ", "name"], exclude_keywords=["รหัส", "code"])
 
             # Handle case where code and name might be inverted in some columns
             if not cls.is_valid_course_code(code) and cls.is_valid_course_code(name):
@@ -306,12 +359,25 @@ class BulkDataImporter:
                 skipped_count += 1
                 continue
 
-            if not name:
+            # Fallback: if name is missing or identical to code, search for a valid title in other text columns
+            if not name or name == code:
+                for k, v in row.items():
+                    if k.startswith("_"):
+                        continue
+                    v_str = str(v).strip()
+                    if not v_str or v_str == code:
+                        continue
+                    if not cls.is_valid_course_code(v_str) and not re.match(r'^\d+(\.\d+)?$', v_str):
+                        if not any(ex in k.lower() for ex in ["รหัส", "code", "ท", "ป", "น", "คาบ", "หน่วยกิต", "ห้อง", "ครู", "กลุ่ม"]):
+                            name = v_str
+                            break
+
+            if not name or name == code:
                 name = f"วิชา {code}"
 
-            theory_raw = cls._find_field(row, ["ท", "ทฤษฎี", "theory"])
-            practice_raw = cls._find_field(row, ["ป", "ปฏิบัติ", "practice"])
-            periods_raw = cls._find_field(row, ["จำนวนคาบ", "คาบ", "periods", "weekly_periods", "ชม.", "ชั่วโมง"])
+            theory_raw = cls._find_field(row, ["ท", "ทฤษฎี", "theory"], exclude_keywords=["ปฏิบัติ", "รหัส", "ชื่อ"])
+            practice_raw = cls._find_field(row, ["ป", "ปฏิบัติ", "practice"], exclude_keywords=["ทฤษฎี", "รหัส", "ชื่อ"])
+            periods_raw = cls._find_field(row, ["จำนวนคาบ", "คาบ", "periods", "weekly_periods", "ชม.", "ชั่วโมง"], exclude_keywords=["รหัส", "ชื่อ"])
             course_type_raw = cls._find_field(row, ["ประเภทวิชา", "type", "course_type"])
             room_type_raw = cls._find_field(row, ["ประเภทห้อง", "ห้อง", "room_type", "ห้องที่ต้องการ"])
             teacher_name = cls._find_field(row, ["ครูผู้สอน", "ผู้สอน", "teacher", "อาจารย์", "ครู"])

@@ -2448,14 +2448,17 @@
     }
 
     async function handleAddGroup(e) {
-      e.preventDefault();
+      if (e && e.preventDefault) e.preventDefault();
       const id = document.getElementById('newGroupId').value.trim();
       const name = document.getElementById('newGroupName').value.trim();
       const level = document.getElementById('newGroupLevel').value;
-      const student_count = parseInt(document.getElementById('newGroupCount').value);
+      const student_count = parseInt(document.getElementById('newGroupCount').value) || 20;
       const is_internship = document.getElementById('newGroupIsInternship') ? document.getElementById('newGroupIsInternship').checked : false;
 
-      if (!name) return alert("กรุณาระบุชื่อกลุ่มเรียน");
+      if (!name) {
+        alert("กรุณาระบุชื่อกลุ่มเรียน");
+        return false;
+      }
 
       try {
         const res = await fetch('/api/groups', {
@@ -2471,11 +2474,15 @@
             document.getElementById('newGroupIsInternship').checked = false;
           }
           await refreshDataManagerData();
+          showToast(`✅ เพิ่มกลุ่มผู้เรียน "${name}" เรียบร้อยแล้ว`, "success", 3500);
+          return true;
         } else {
           alert("ไม่สามารถเพิ่มกลุ่มได้: " + (data.detail || "ข้อผิดพลาด"));
+          return false;
         }
       } catch (err) {
         alert("ข้อผิดพลาด: " + err.message);
+        return false;
       }
     }
 
@@ -2483,15 +2490,19 @@
       if (!confirm(`ยืนยันการลบกลุ่มเรียน ${id} หรือไม่?`)) return;
       try {
         const res = await fetch(`/api/groups/${id}`, { method: 'DELETE' });
-        if (res.ok) await refreshDataManagerData();
-        else alert("ลบไม่สำเร็จ");
+        if (res.ok) {
+          await refreshDataManagerData();
+          showToast(`🗑️ ลบกลุ่มเรียน ${id} เรียบร้อยแล้ว`, "info", 3000);
+        } else {
+          alert("ลบไม่สำเร็จ");
+        }
       } catch (err) {
         alert("ข้อผิดพลาด: " + err.message);
       }
     }
 
     async function handleAddTeacher(e) {
-      e.preventDefault();
+      if (e && e.preventDefault) e.preventDefault();
       const id = document.getElementById('newTeacherId').value.trim();
       const name = document.getElementById('newTeacherName').value.trim();
       const qualification = document.getElementById('newTeacherQualification')?.value.trim() || '';
@@ -2500,7 +2511,10 @@
       const is_head = document.getElementById('newTeacherIsHead').value === 'true';
       const max_periods_week = is_head ? 28 : 34;
 
-      if (!name) return alert("กรุณาระบุชื่อ-นามสกุลครู");
+      if (!name) {
+        alert("กรุณาระบุชื่อ-นามสกุลครู");
+        return false;
+      }
 
       try {
         const res = await fetch('/api/teachers', {
@@ -2523,11 +2537,15 @@
           if (document.getElementById('newTeacherQualification')) document.getElementById('newTeacherQualification').value = '';
           if (document.getElementById('newTeacherSpecialDuty')) document.getElementById('newTeacherSpecialDuty').value = '';
           await refreshDataManagerData();
+          showToast(`✅ เพิ่มครูผู้สอน "${name}" เรียบร้อยแล้ว`, "success", 3500);
+          return true;
         } else {
           alert("ไม่สามารถเพิ่มครูได้: " + (data.detail || "ข้อผิดพลาด"));
+          return false;
         }
       } catch (err) {
         alert("ข้อผิดพลาด: " + err.message);
+        return false;
       }
     }
 
@@ -2535,21 +2553,28 @@
       if (!confirm(`ยืนยันการลบครูผู้สอน ${id} หรือไม่?`)) return;
       try {
         const res = await fetch(`/api/teachers/${id}`, { method: 'DELETE' });
-        if (res.ok) await refreshDataManagerData();
-        else alert("ลบไม่สำเร็จ");
+        if (res.ok) {
+          await refreshDataManagerData();
+          showToast(`🗑️ ลบครูผู้สอน ${id} เรียบร้อยแล้ว`, "info", 3000);
+        } else {
+          alert("ลบไม่สำเร็จ");
+        }
       } catch (err) {
         alert("ข้อผิดพลาด: " + err.message);
       }
     }
 
     async function handleAddRoom(e) {
-      e.preventDefault();
+      if (e && e.preventDefault) e.preventDefault();
       const id = document.getElementById('newRoomId').value.trim();
       const name = document.getElementById('newRoomName').value.trim();
       const room_type = document.getElementById('newRoomType').value;
       const capacity = parseInt(document.getElementById('newRoomCap').value) || 35;
 
-      if (!name) return alert("กรุณาระบุชื่อห้องเรียน");
+      if (!name) {
+        alert("กรุณาระบุชื่อห้องเรียน");
+        return false;
+      }
 
       try {
         const res = await fetch('/api/rooms', {
@@ -2562,11 +2587,15 @@
           document.getElementById('newRoomId').value = '';
           document.getElementById('newRoomName').value = '';
           await refreshDataManagerData();
+          showToast(`✅ เพิ่มห้องเรียน/ศูนย์ฝึก "${name}" เรียบร้อยแล้ว`, "success", 3500);
+          return true;
         } else {
           alert("ไม่สามารถเพิ่มห้องได้: " + (data.detail || "ข้อผิดพลาด"));
+          return false;
         }
       } catch (err) {
         alert("ข้อผิดพลาด: " + err.message);
+        return false;
       }
     }
 
@@ -2760,6 +2789,27 @@
     }
 
     async function saveAndSolveCurrent() {
+      // Auto-save pending input from the active tab if user entered data but forgot to click '+ เพิ่ม'
+      if (currentDataTab === 'groups') {
+        const nameVal = document.getElementById('newGroupName')?.value?.trim();
+        if (nameVal) {
+          const ok = await handleAddGroup();
+          if (!ok) return;
+        }
+      } else if (currentDataTab === 'rooms') {
+        const nameVal = document.getElementById('newRoomName')?.value?.trim();
+        if (nameVal) {
+          const ok = await handleAddRoom();
+          if (!ok) return;
+        }
+      } else if (currentDataTab === 'teachers') {
+        const nameVal = document.getElementById('newTeacherName')?.value?.trim();
+        if (nameVal) {
+          const ok = await handleAddTeacher();
+          if (!ok) return;
+        }
+      }
+
       const btn = document.getElementById('btnSaveSolve');
       const oldText = btn.innerHTML;
       btn.innerHTML = `<span class="animate-spin mr-1">⏳</span> กำลังประมวลผล...`;
@@ -2771,7 +2821,7 @@
           const errText = await res.text();
           throw new Error(errText || `Server error (${res.status})`);
         }
-        solveResult = await res.json();
+        const newSolveResult = await res.json();
 
         // โหลด benchmarkData ใหม่
         const resData = await fetch('/api/data');
@@ -2780,19 +2830,24 @@
         closeDataManagerModal();
         populateEntitySelect();
         updateBanner();
-        renderTimetable();
         saveStateToLocalStorage();
 
-        if (!solveResult.is_success) {
-          showToast(`⚠️ ${solveResult.message || 'ไม่สามารถจัดตารางได้ครบตามเงื่อนไข'}`, "warning", 6000);
+        if (newSolveResult && newSolveResult.is_success && newSolveResult.schedule && newSolveResult.schedule.length > 0) {
+          solveResult = newSolveResult;
+          renderTimetable();
+          showToast(`✅ บันทึกและจัดตารางตามข้อมูลล่าสุดสำเร็จ (${solveResult.total_lessons_scheduled} รายการ)`, "success", 4000);
+          document.getElementById('statusInfo').textContent = `สถานะ: ${solveResult.message || solveResult.status}`;
+          document.getElementById('statTime').textContent = `${solveResult.execution_time_seconds || '-'} วินาที`;
+          document.getElementById('statLessons').textContent = `${solveResult.total_lessons_scheduled || 0}`;
         } else {
-          showToast(`✅ จัดตารางตามข้อมูลล่าสุดสำเร็จ (${solveResult.total_lessons_scheduled} รายการ)`, "success", 4000);
+          showToast(`⚠️ บันทึกข้อมูลเรียบร้อย แต่ ${newSolveResult?.message || 'ไม่สามารถจัดตารางได้ครบตามเงื่อนไข'}`, "warning", 6000);
+          if (newSolveResult) {
+            document.getElementById('statusInfo').textContent = `สถานะ: ${newSolveResult.message || newSolveResult.status}`;
+            if (newSolveResult.execution_time_seconds) {
+              document.getElementById('statTime').textContent = `${newSolveResult.execution_time_seconds} วินาที`;
+            }
+          }
         }
-
-        // แจ้งเตือนสถานะ
-        document.getElementById('statusInfo').textContent = `สถานะ: ${solveResult.message || solveResult.status}`;
-        document.getElementById('statTime').textContent = `${solveResult.execution_time_seconds || '-'} วินาที`;
-        document.getElementById('statLessons').textContent = `${solveResult.total_lessons_scheduled || 0}`;
       } catch (err) {
         alert("เกิดข้อผิดพลาดในการประมวลผล: " + err.message);
       } finally {

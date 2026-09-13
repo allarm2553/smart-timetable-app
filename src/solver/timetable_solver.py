@@ -344,6 +344,7 @@ class TimetableSolver:
 
     def solve(self, time_limit_seconds: float = 20.0):
         self.solver.parameters.max_time_in_seconds = time_limit_seconds
+        self.solver.parameters.num_search_workers = 2
         status = self.solver.Solve(self.model)
         
         status_name = self.solver.StatusName(status)

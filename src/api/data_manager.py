@@ -230,7 +230,12 @@ class TimetableDataManager:
 
     # Rooms CRUD
     def add_room(self, room_data: Dict[str, Any]) -> Dict[str, Any]:
-        r_id = room_data.get("id") or f"ROOM_{len(self.rooms)+1}"
+        r_id = (room_data.get("id") or "").strip()
+        if not r_id:
+            idx = len(self.rooms) + 1
+            while any(r["id"] == f"ROOM_{idx}" for r in self.rooms):
+                idx += 1
+            r_id = f"ROOM_{idx}"
         if any(r["id"] == r_id for r in self.rooms):
             raise ValueError(f"รหัสห้องเรียน '{r_id}' มีอยู่แล้วในระบบ")
         new_room = {
@@ -266,7 +271,12 @@ class TimetableDataManager:
 
     # Groups CRUD
     def add_group(self, group_data: Dict[str, Any]) -> Dict[str, Any]:
-        g_id = group_data.get("id") or f"G_{len(self.groups)+1}"
+        g_id = (group_data.get("id") or "").strip()
+        if not g_id:
+            idx = len(self.groups) + 1
+            while any(g["id"] == f"G_GRP_{idx}" for g in self.groups):
+                idx += 1
+            g_id = f"G_GRP_{idx}"
         if any(g["id"] == g_id for g in self.groups):
             raise ValueError(f"รหัสกลุ่มเรียน '{g_id}' มีอยู่แล้วในระบบ")
         new_group = {

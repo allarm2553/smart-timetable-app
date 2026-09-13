@@ -238,6 +238,14 @@
       "student_count": 20,
       "pvs_18_weeks": true,
       "is_internship": true
+    },
+    {
+      "id": "G_CHO_3_3",
+      "name": "ชอ.3/3 (ปวช.3 )",
+      "level": "VOC_CERT",
+      "student_count": 20,
+      "pvs_18_weeks": true,
+      "is_internship": false
     }
   ],
   "courses": {

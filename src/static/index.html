@@ -230,15 +230,26 @@
       </div>
 
       <!-- Quick Status -->
-      <div class="pt-2 border-t border-slate-200 flex flex-wrap items-center justify-between text-xs text-slate-500">
-        <div class="flex items-center space-x-2">
-          <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+      <div class="pt-2 border-t border-slate-200 flex flex-wrap items-center justify-between text-xs text-slate-500 gap-2">
+        <div class="flex items-center space-x-2 flex-wrap gap-y-1">
+          <span class="w-2 h-2 rounded-full bg-emerald-500 shrink-0"></span>
           <span id="statusInfo">สถานะ: จัดตารางสมบูรณ์ (OPTIMAL)</span>
           <span class="text-blue-600 font-semibold ml-2">💡 คลิกที่กล่องวิชาสีเหลืองเพื่อปรับย้ายหรือสลับคาบเรียน</span>
         </div>
-        <div class="flex items-center space-x-4">
-          <span>เวลาประมวลผล: <strong id="statTime" class="text-slate-700">-</strong></span>
-          <span>จำนวนวิชา: <strong id="statLessons" class="text-slate-700">-</strong> รายการ</span>
+        <div class="flex items-center space-x-3 flex-wrap gap-y-1">
+          <!-- Auto-save status badge -->
+          <div id="storageStatusBadge" class="hidden flex items-center space-x-1.5 px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200 text-[11px] font-medium" title="ระบบบันทึกความคืบหน้าไว้ในเครื่องของคุณอัตโนมัติ">
+            <i data-lucide="save" class="w-3.5 h-3.5 text-emerald-600"></i>
+            <span id="storageStatusText">บันทึกอัตโนมัติแล้ว</span>
+          </div>
+          <!-- Reset button -->
+          <button onclick="resetToDefault()" title="ล้างข้อมูลที่จัดค้างไว้ในเครื่อง แล้วคำนวณใหม่จากข้อมูลตั้งต้น" class="flex items-center space-x-1 px-2.5 py-1 rounded-md bg-slate-100 hover:bg-rose-50 hover:text-rose-700 hover:border-rose-300 border border-slate-300 text-slate-600 text-[11px] font-semibold transition active:scale-95 font-display">
+            <i data-lucide="rotate-ccw" class="w-3.5 h-3.5 text-slate-500"></i>
+            <span>รีเซ็ตค่าเริ่มต้น</span>
+          </button>
+          <span class="text-slate-300 hidden sm:inline">|</span>
+          <span>เวลา: <strong id="statTime" class="text-slate-700">-</strong></span>
+          <span>วิชา: <strong id="statLessons" class="text-slate-700">-</strong> รายการ</span>
         </div>
       </div>
     </div>
@@ -551,12 +562,100 @@
       }
     }
 
+    // --- LocalStorage State Management (Auto-Save / Auto-Restore) ---
+    const STORAGE_KEY_STATE = 'smart_timetable_state_v2';
+
+    function saveStateToLocalStorage() {
+      if (!solveResult || !solveResult.schedule || !Array.isArray(solveResult.schedule)) return;
+      try {
+        const payload = {
+          version: 2,
+          savedAt: new Date().toISOString(),
+          solveResult: solveResult,
+          currentBlock: currentBlock,
+          currentViewMode: currentViewMode,
+          currentEntityId: currentEntityId
+        };
+        localStorage.setItem(STORAGE_KEY_STATE, JSON.stringify(payload));
+        updateStorageStatusBadge(payload.savedAt);
+      } catch (e) {
+        console.warn("Cannot save state to localStorage:", e);
+      }
+    }
+
+    function loadStateFromLocalStorage() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY_STATE);
+        if (!raw) return null;
+        const data = JSON.parse(raw);
+        if (data && data.solveResult && Array.isArray(data.solveResult.schedule) && data.solveResult.schedule.length > 0) {
+          return data;
+        }
+      } catch (e) {
+        console.warn("Failed to parse localStorage state:", e);
+      }
+      return null;
+    }
+
+    function clearSavedState() {
+      try {
+        localStorage.removeItem(STORAGE_KEY_STATE);
+      } catch (e) {
+        console.warn("Failed to clear localStorage:", e);
+      }
+    }
+
+    function updateStorageStatusBadge(isoTime) {
+      const textEl = document.getElementById('storageStatusText');
+      const badgeEl = document.getElementById('storageStatusBadge');
+      if (!textEl || !badgeEl) return;
+
+      if (isoTime) {
+        const d = new Date(isoTime);
+        const timeStr = d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        textEl.textContent = `จำข้อมูลแล้ว (${timeStr})`;
+        badgeEl.classList.remove('hidden');
+        badgeEl.title = `บันทึกข้อมูลตารางลงเบราว์เซอร์เมื่อเวลา ${timeStr} ปิดเว็บหรือเปิดใหม่ข้อมูลก็ยังอยู่`;
+      } else {
+        badgeEl.classList.add('hidden');
+      }
+      safeCreateIcons();
+    }
+
+    async function resetToDefault() {
+      if (!confirm("⚠️ ยืนยันการรีเซ็ตค่าเริ่มต้น?\n\nระบบจะล้างข้อมูลตารางและการปรับย้ายที่จำไว้ในเครื่อง แล้วคำนวณตารางใหม่จากชุดข้อมูลตั้งต้น")) {
+        return;
+      }
+      clearSavedState();
+      updateStorageStatusBadge(null);
+      showToast("↺ ล้างข้อมูลในเครื่องแล้ว กำลังคำนวณตารางเริ่มต้นใหม่...", "info", 2500);
+      await runSolver();
+    }
+
     async function init() {
       renderBlockButtons();
       try {
         const res = await fetch('/api/benchmark');
         benchmarkData = await res.json();
-        await runSolver();
+
+        const saved = loadStateFromLocalStorage();
+        if (saved) {
+          solveResult = saved.solveResult;
+          if (saved.currentBlock) currentBlock = saved.currentBlock;
+          if (saved.currentViewMode) currentViewMode = saved.currentViewMode;
+          if (saved.currentEntityId) currentEntityId = saved.currentEntityId;
+
+          document.getElementById('statusInfo').textContent = `สถานะ: กู้คืนข้อมูลตารางล่าสุด (${solveResult.status || 'OPTIMAL'})`;
+          document.getElementById('statTime').textContent = `${solveResult.execution_time_seconds || '-'} วินาที`;
+          document.getElementById('statLessons').textContent = `${solveResult.total_lessons_scheduled || solveResult.schedule?.length || 0}`;
+
+          renderBlockButtons();
+          setViewMode(currentViewMode);
+          updateStorageStatusBadge(saved.savedAt);
+          showToast("💾 กู้คืนข้อมูลตารางและรายการที่คุณจัดค้างไว้ล่าสุดเรียบร้อยแล้ว", "success", 4000);
+        } else {
+          await runSolver();
+        }
       } catch (err) {
         console.error("Init failed:", err);
       }
@@ -585,6 +684,7 @@
       renderBlockButtons();
       updateBanner();
       renderTimetable();
+      saveStateToLocalStorage();
     }
 
     function setViewMode(mode) {
@@ -606,6 +706,7 @@
       populateEntitySelect();
       updateBanner();
       renderTimetable();
+      saveStateToLocalStorage();
     }
 
     function populateEntitySelect() {
@@ -643,6 +744,7 @@
       currentEntityId = document.getElementById('entitySelect').value;
       updateBanner();
       renderTimetable();
+      saveStateToLocalStorage();
     }
 
     async function runSolver() {
@@ -662,6 +764,7 @@
         populateEntitySelect();
         updateBanner();
         renderTimetable();
+        saveStateToLocalStorage();
       } catch (err) {
         alert("เกิดข้อผิดพลาด: " + err.message);
       } finally {
@@ -1702,6 +1805,7 @@
 
         if (result.is_success) {
           solveResult.schedule = result.updated_schedule;
+          saveStateToLocalStorage();
           renderTimetable();
           const dayName = DAYS[targetDay]?.name || `วันที่ ${targetDay + 1}`;
           showToast(`✅ ย้ายวิชา '${lesson.course_code || lesson.course_name}' ไปยัง ${dayName} คาบที่ ${targetPeriod} สำเร็จ!`, "success");
@@ -1815,6 +1919,7 @@
 
         if (result.is_success) {
           solveResult.schedule = result.updated_schedule;
+          saveStateToLocalStorage();
           closeSwapConfirmModal();
           renderTimetable();
           showToast("🔄 สลับคาบเรียนสำเร็จเรียบร้อย!", "success");
@@ -1956,6 +2061,7 @@
 
         if (result.is_success) {
           solveResult.schedule = result.updated_schedule;
+          saveStateToLocalStorage();
           closeEditModal();
           renderTimetable();
           
@@ -2410,6 +2516,7 @@
         populateEntitySelect();
         updateBanner();
         renderTimetable();
+        saveStateToLocalStorage();
 
         // แจ้งเตือนสถานะ
         document.getElementById('statusInfo').textContent = `สถานะ: จัดตารางสำเร็จตามข้อมูลล่าสุด (${solveResult.status})`;

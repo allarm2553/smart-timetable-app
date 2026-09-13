@@ -62,7 +62,9 @@ def health_check():
     return {
         "status": "healthy",
         "service": "Smart Timetable API",
-        "engine": "Google OR-Tools CP-SAT"
+        "engine": "Google OR-Tools CP-SAT",
+        "version": "1.0.4",
+        "build": "perf-pure-sat-v4"
     }
 
 @app.get("/api/benchmark")
@@ -569,7 +571,7 @@ def solve_current():
         days=5,
         periods_per_day=12,
         num_blocks=6,
-        time_limit_seconds=30.0
+        time_limit_seconds=45.0
     )
 
 @app.get("/api/export/excel")

@@ -129,75 +129,96 @@ def _run_solver(
     time_limit_seconds: float
 ) -> SolveResponse:
     start_time = time.time()
-    
-    solver = TimetableSolver(
-        teachers=teachers,
-        rooms=rooms,
-        groups=groups,
-        assignments=assignments,
-        days=days,
-        periods_per_day=periods_per_day,
-        num_blocks=num_blocks
-    )
-    
-    solver.build_model()
-    raw_results = solver.solve(time_limit_seconds=time_limit_seconds)
-    elapsed = round(time.time() - start_time, 3)
 
-    if not raw_results:
+    if not assignments:
         return SolveResponse(
-            status="INFEASIBLE",
+            status="EMPTY",
+            is_success=True,
+            execution_time_seconds=0.0,
+            total_lessons_scheduled=0,
+            schedule=[],
+            message="ไม่มีแผนการสอนที่ต้องจัดตารางในระบบ กรุณาเพิ่มรายวิชาหรือนำเข้าข้อมูล"
+        )
+
+    try:
+        solver = TimetableSolver(
+            teachers=teachers,
+            rooms=rooms,
+            groups=groups,
+            assignments=assignments,
+            days=days,
+            periods_per_day=periods_per_day,
+            num_blocks=num_blocks
+        )
+        
+        solver.build_model()
+        raw_results = solver.solve(time_limit_seconds=time_limit_seconds)
+        elapsed = round(time.time() - start_time, 3)
+
+        if not raw_results:
+            return SolveResponse(
+                status="INFEASIBLE",
+                is_success=False,
+                execution_time_seconds=elapsed,
+                total_lessons_scheduled=0,
+                schedule=[],
+                message="ไม่สามารถจัดตารางได้ภายใต้เงื่อนไขที่กำหนด (โปรดตรวจสอบข้อจำกัดเวลา ห้อง หรือครู)"
+            )
+
+        t_map = {t.id: t for t in teachers}
+        schedule_entries = []
+        for r in raw_results:
+            ass: LessonAssignment = r["assignment"]
+            d = r["day"]
+            p = r["start_period"]
+            dur = r["duration"]
+
+            sec_t_id = getattr(ass, "secondary_teacher_id", None)
+            sec_t_name = t_map[sec_t_id].name if sec_t_id and sec_t_id in t_map else None
+
+            entry = ScheduleEntryDTO(
+                assignment_id=ass.id,
+                course_id=ass.course.id,
+                course_name=ass.course.name,
+                course_code=ass.course.code or ass.course.id,
+                course_type=ass.course.course_type,
+                teacher_id=r["teacher"].id,
+                teacher_name=r["teacher"].name,
+                secondary_teacher_id=sec_t_id,
+                secondary_teacher_name=sec_t_name,
+                teaching_mode=getattr(ass, "teaching_mode", "SINGLE"),
+                room_id=r["room"].id,
+                room_name=r["room"].name,
+                primary_group_id=ass.primary_group_id,
+                secondary_group_id=ass.secondary_group_id,
+                is_merged=ass.secondary_group_id is not None,
+                day=d,
+                day_name=DAY_NAMES[d] if d < len(DAY_NAMES) else f"วันที่ {d+1}",
+                start_period=p + 1,  # แปลงเป็นคาบ 1-indexed สำหรับผู้ใช้
+                end_period=p + dur,
+                duration=dur,
+                active_blocks=[b + 1 for b in r["active_blocks"]] # บล็อก 1-6
+            )
+            schedule_entries.append(entry)
+
+        return SolveResponse(
+            status="FEASIBLE",
+            is_success=True,
+            execution_time_seconds=elapsed,
+            total_lessons_scheduled=len(schedule_entries),
+            schedule=schedule_entries,
+            message="จัดตารางเรียนตารางสอนสำเร็จเรียบร้อย"
+        )
+    except Exception as exc:
+        elapsed = round(time.time() - start_time, 3)
+        return SolveResponse(
+            status="ERROR",
             is_success=False,
             execution_time_seconds=elapsed,
             total_lessons_scheduled=0,
             schedule=[],
-            message="ไม่สามารถจัดตารางได้ภายใต้เงื่อนไขที่กำหนด (โปรดตรวจสอบข้อจำกัดเวลา ห้อง หรือครู)"
+            message=f"เกิดข้อผิดพลาดในการประมวลผล: {str(exc)}"
         )
-
-    t_map = {t.id: t for t in teachers}
-    schedule_entries = []
-    for r in raw_results:
-        ass: LessonAssignment = r["assignment"]
-        d = r["day"]
-        p = r["start_period"]
-        dur = r["duration"]
-
-        sec_t_id = getattr(ass, "secondary_teacher_id", None)
-        sec_t_name = t_map[sec_t_id].name if sec_t_id and sec_t_id in t_map else None
-
-        entry = ScheduleEntryDTO(
-            assignment_id=ass.id,
-            course_id=ass.course.id,
-            course_name=ass.course.name,
-            course_code=ass.course.code or ass.course.id,
-            course_type=ass.course.course_type,
-            teacher_id=r["teacher"].id,
-            teacher_name=r["teacher"].name,
-            secondary_teacher_id=sec_t_id,
-            secondary_teacher_name=sec_t_name,
-            teaching_mode=getattr(ass, "teaching_mode", "SINGLE"),
-            room_id=r["room"].id,
-            room_name=r["room"].name,
-            primary_group_id=ass.primary_group_id,
-            secondary_group_id=ass.secondary_group_id,
-            is_merged=ass.secondary_group_id is not None,
-            day=d,
-            day_name=DAY_NAMES[d] if d < len(DAY_NAMES) else f"วันที่ {d+1}",
-            start_period=p + 1,  # แปลงเป็นคาบ 1-indexed สำหรับผู้ใช้
-            end_period=p + dur,
-            duration=dur,
-            active_blocks=[b + 1 for b in r["active_blocks"]] # บล็อก 1-6
-        )
-        schedule_entries.append(entry)
-
-    return SolveResponse(
-        status="FEASIBLE",
-        is_success=True,
-        execution_time_seconds=elapsed,
-        total_lessons_scheduled=len(schedule_entries),
-        schedule=schedule_entries,
-        message="จัดตารางเรียนตารางสอนสำเร็จเรียบร้อย"
-    )
 
 @app.post("/api/solve/benchmark", response_model=SolveResponse)
 def solve_benchmark():

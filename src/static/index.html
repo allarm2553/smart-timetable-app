@@ -899,6 +899,10 @@
 
       try {
         const res = await fetch('/api/solve/benchmark', { method: 'POST' });
+        if (!res.ok) {
+          const errText = await res.text();
+          throw new Error(errText || `Server error (${res.status})`);
+        }
         solveResult = await res.json();
 
         document.getElementById('statusInfo').textContent = `สถานะ: จัดตารางสำเร็จ (${solveResult.status})`;
@@ -2650,6 +2654,10 @@
 
       try {
         const res = await fetch('/api/solve/current', { method: 'POST' });
+        if (!res.ok) {
+          const errText = await res.text();
+          throw new Error(errText || `Server error (${res.status})`);
+        }
         solveResult = await res.json();
 
         // โหลด benchmarkData ใหม่
@@ -2662,10 +2670,16 @@
         renderTimetable();
         saveStateToLocalStorage();
 
+        if (!solveResult.is_success) {
+          showToast(`⚠️ ${solveResult.message || 'ไม่สามารถจัดตารางได้ครบตามเงื่อนไข'}`, "warning", 6000);
+        } else {
+          showToast(`✅ จัดตารางตามข้อมูลล่าสุดสำเร็จ (${solveResult.total_lessons_scheduled} รายการ)`, "success", 4000);
+        }
+
         // แจ้งเตือนสถานะ
-        document.getElementById('statusInfo').textContent = `สถานะ: จัดตารางสำเร็จตามข้อมูลล่าสุด (${solveResult.status})`;
-        document.getElementById('statTime').textContent = `${solveResult.execution_time_seconds} วินาที`;
-        document.getElementById('statLessons').textContent = `${solveResult.total_lessons_scheduled}`;
+        document.getElementById('statusInfo').textContent = `สถานะ: ${solveResult.message || solveResult.status}`;
+        document.getElementById('statTime').textContent = `${solveResult.execution_time_seconds || '-'} วินาที`;
+        document.getElementById('statLessons').textContent = `${solveResult.total_lessons_scheduled || 0}`;
       } catch (err) {
         alert("เกิดข้อผิดพลาดในการประมวลผล: " + err.message);
       } finally {

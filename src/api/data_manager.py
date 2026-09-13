@@ -32,10 +32,31 @@ class TimetableDataManager:
                     self.groups = data.get("groups", [])
                     self.courses = data.get("courses", {})
                     self.assignments = data.get("assignments", [])
+                    self._sanitize_data()
                     return
             except Exception as e:
                 print(f"Failed to load config file: {e}, resetting to benchmark.")
         self.reset_to_default()
+
+    def _sanitize_data(self):
+        """ล้างความสัมพันธ์กำพร้า (Orphan References) เพื่อป้องกัน Solver ขัดข้อง"""
+        valid_group_ids = {g["id"] for g in self.groups}
+        valid_teacher_ids = {t["id"] for t in self.teachers}
+        valid_course_ids = set(self.courses.keys())
+        
+        clean_assignments = []
+        for a in self.assignments:
+            if (a.get("primary_group_id") in valid_group_ids and
+                a.get("teacher_id") in valid_teacher_ids and
+                a.get("course_id") in valid_course_ids):
+                
+                if a.get("secondary_group_id") and a.get("secondary_group_id") not in valid_group_ids:
+                    a["secondary_group_id"] = None
+                if a.get("secondary_teacher_id") and a.get("secondary_teacher_id") not in valid_teacher_ids:
+                    a["secondary_teacher_id"] = None
+                clean_assignments.append(a)
+        
+        self.assignments = clean_assignments
 
     def _save(self):
         DATA_DIR.mkdir(exist_ok=True)
@@ -133,6 +154,7 @@ class TimetableDataManager:
                 self.courses = project_data["courses"]
         if "assignments" in project_data and isinstance(project_data["assignments"], list):
             self.assignments = project_data["assignments"]
+        self._sanitize_data()
         self._save()
 
     # Teachers CRUD
@@ -159,6 +181,7 @@ class TimetableDataManager:
         before = len(self.teachers)
         self.teachers = [t for t in self.teachers if t["id"] != teacher_id]
         if len(self.teachers) < before:
+            self._sanitize_data()
             self._save()
             return True
         return False
@@ -213,6 +236,7 @@ class TimetableDataManager:
         before = len(self.groups)
         self.groups = [g for g in self.groups if g["id"] != group_id]
         if len(self.groups) < before:
+            self._sanitize_data()
             self._save()
             return True
         return False
@@ -299,17 +323,31 @@ class TimetableDataManager:
                 base_id=c.get("base_id")
             ) for cid, c in self.courses.items()
         }
+        valid_group_ids = {g.id for g in groups}
+        valid_teacher_ids = {t.id for t in teachers}
         assignments = []
         for a in self.assignments:
-            if a["course_id"] in courses_dict:
+            cid = a.get("course_id")
+            gid = a.get("primary_group_id")
+            tid = a.get("teacher_id")
+
+            if cid in courses_dict and gid in valid_group_ids and tid in valid_teacher_ids:
+                sec_grp = a.get("secondary_group_id")
+                if sec_grp and sec_grp not in valid_group_ids:
+                    sec_grp = None
+
+                sec_tch = a.get("secondary_teacher_id")
+                if sec_tch and sec_tch not in valid_teacher_ids:
+                    sec_tch = None
+
                 assignments.append(
                     LessonAssignment(
                         id=a["id"],
-                        course=courses_dict[a["course_id"]],
-                        primary_group_id=a["primary_group_id"],
-                        teacher_id=a["teacher_id"],
-                        secondary_teacher_id=a.get("secondary_teacher_id"),
-                        secondary_group_id=a.get("secondary_group_id"),
+                        course=courses_dict[cid],
+                        primary_group_id=gid,
+                        teacher_id=tid,
+                        secondary_teacher_id=sec_tch,
+                        secondary_group_id=sec_grp,
                         is_rotation=a.get("is_rotation", False),
                         teaching_mode=a.get("teaching_mode", "SINGLE")
                     )

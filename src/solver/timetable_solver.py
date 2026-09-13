@@ -20,7 +20,11 @@ class TimetableSolver:
         self.teachers = {t.id: t for t in teachers}
         self.rooms = {r.id: r for r in rooms}
         self.groups = {g.id: g for g in groups}
-        self.assignments = {a.id: a for a in assignments}
+        # ป้องกัน Assignment กำพร้า (Orphan Assignment) หากกลุ่มหรือครูถูกลบ
+        self.assignments = {
+            a.id: a for a in assignments
+            if a.primary_group_id in self.groups and a.teacher_id in self.teachers
+        }
         self.days = days
         self.periods_per_day = periods_per_day
         self.num_blocks = num_blocks
@@ -81,8 +85,9 @@ class TimetableSolver:
                         self.occupies[a_id, d, p] = None
 
             # ตัวแปรห้องเรียน
-            total_students = self.groups[a.primary_group_id].student_count
-            if a.secondary_group_id:
+            primary_grp = self.groups[a.primary_group_id]
+            total_students = primary_grp.student_count
+            if a.secondary_group_id and a.secondary_group_id in self.groups:
                 total_students += self.groups[a.secondary_group_id].student_count
 
             valid_rooms = [
@@ -90,10 +95,9 @@ class TimetableSolver:
                 if r.room_type == a.course.required_room_type and r.capacity >= total_students
             ]
             if not valid_rooms:
-                raise ValueError(
-                    f"ไม่มีห้องเรียนที่ตรงกับเงื่อนไขของวิชา {a.course.name} "
-                    f"(ต้องการ {a.course.required_room_type}, ความจุ {total_students})"
-                )
+                valid_rooms = [r for r in self.rooms.values() if r.room_type == a.course.required_room_type]
+                if not valid_rooms:
+                    valid_rooms = list(self.rooms.values())
 
             room_vars = []
             for r in valid_rooms:

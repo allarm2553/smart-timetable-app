@@ -656,9 +656,29 @@
         await fetch('/api/data/clear', { method: 'POST' });
         clearSavedState();
         updateStorageStatusBadge(null);
+
+        benchmarkData = { teachers: [], rooms: [], groups: [], courses: [], assignments: [] };
+        fullDataManagerData = { teachers: [], rooms: [], groups: [], courses: [], assignments: [] };
+        solveResult = {
+          status: "EMPTY",
+          is_success: true,
+          execution_time_seconds: 0,
+          total_lessons_scheduled: 0,
+          schedule: [],
+          message: "ระบบว่างเปล่า ไม่มีแผนการสอนในระบบ"
+        };
+        currentEntityId = '';
+
+        document.getElementById('statusInfo').textContent = "สถานะ: ล้างข้อมูลทั้งหมดในระบบเรียบร้อย (ระบบว่างเปล่า)";
+        document.getElementById('statTime').textContent = "-";
+        document.getElementById('statLessons').textContent = "0";
+
+        populateEntitySelect();
+        updateBanner();
+        renderTimetable();
+        saveStateToLocalStorage();
+
         showToast("🗑️ ล้างข้อมูลทั้งหมดในระบบเรียบร้อยแล้ว (ระบบว่างเปล่า)", "success", 3000);
-        await loadDataManagerData();
-        await saveAndSolveCurrent();
       } catch (err) {
         showToast("เกิดข้อผิดพลาด: " + err.message, "error");
       }
@@ -785,8 +805,31 @@
     async function init() {
       renderBlockButtons();
       try {
-        const res = await fetch('/api/benchmark');
+        const res = await fetch('/api/data');
         benchmarkData = await res.json();
+
+        // If backend data is completely empty, clear local storage and show clean empty board
+        if (!benchmarkData || !benchmarkData.assignments || benchmarkData.assignments.length === 0) {
+          clearSavedState();
+          solveResult = {
+            status: "EMPTY",
+            is_success: true,
+            execution_time_seconds: 0,
+            total_lessons_scheduled: 0,
+            schedule: [],
+            message: "ระบบว่างเปล่า ไม่มีแผนการสอนในระบบ"
+          };
+          currentEntityId = '';
+          document.getElementById('statusInfo').textContent = "สถานะ: ระบบว่างเปล่า กรุณานำเข้าแผนการเรียนหรือเพิ่มข้อมูล";
+          document.getElementById('statTime').textContent = "-";
+          document.getElementById('statLessons').textContent = "0";
+
+          populateEntitySelect();
+          updateBanner();
+          renderTimetable();
+          safeCreateIcons();
+          return;
+        }
 
         const saved = loadStateFromLocalStorage();
         if (saved) {
@@ -927,17 +970,21 @@
           benchmarkData = await resData.json();
         } catch (e) {}
 
-        if (newSolveResult && newSolveResult.is_success && newSolveResult.schedule && newSolveResult.schedule.length > 0) {
+        if (newSolveResult && newSolveResult.is_success && Array.isArray(newSolveResult.schedule)) {
           solveResult = newSolveResult;
-          document.getElementById('statusInfo').textContent = `สถานะ: จัดตารางสำเร็จ (${solveResult.status})`;
-          document.getElementById('statTime').textContent = `${solveResult.execution_time_seconds} วินาที`;
-          document.getElementById('statLessons').textContent = `${solveResult.total_lessons_scheduled}`;
+          document.getElementById('statusInfo').textContent = `สถานะ: ${solveResult.message || solveResult.status}`;
+          document.getElementById('statTime').textContent = `${solveResult.execution_time_seconds || 0} วินาที`;
+          document.getElementById('statLessons').textContent = `${solveResult.total_lessons_scheduled || 0}`;
 
           populateEntitySelect();
           updateBanner();
           renderTimetable();
           saveStateToLocalStorage();
-          showToast(`✅ จัดตารางตามข้อมูลล่าสุดสำเร็จ (${solveResult.total_lessons_scheduled} รายการ)`, "success", 4000);
+          if (solveResult.total_lessons_scheduled > 0) {
+            showToast(`✅ จัดตารางตามข้อมูลล่าสุดสำเร็จ (${solveResult.total_lessons_scheduled} รายการ)`, "success", 4000);
+          } else {
+            showToast("ℹ️ ระบบว่างเปล่า ไม่มีรายวิชาที่ต้องจัดตาราง", "info", 3000);
+          }
         } else {
           showToast(`⚠️ ${newSolveResult?.message || 'ไม่สามารถจัดตารางได้ครบตามเงื่อนไข'}`, "warning", 6000);
           if (newSolveResult) {
@@ -2815,9 +2862,33 @@
         const res = await fetch('/api/data/clear', { method: 'POST' });
         if (res.ok) {
           clearSavedState();
+          benchmarkData = { teachers: [], rooms: [], groups: [], courses: [], assignments: [] };
+          fullDataManagerData = { teachers: [], rooms: [], groups: [], courses: [], assignments: [] };
+          solveResult = {
+            status: "EMPTY",
+            is_success: true,
+            execution_time_seconds: 0,
+            total_lessons_scheduled: 0,
+            schedule: [],
+            message: "ระบบว่างเปล่า ไม่มีแผนการสอนในระบบ"
+          };
+          currentEntityId = '';
+
+          document.getElementById('statusInfo').textContent = "สถานะ: ล้างข้อมูลทั้งหมดในระบบเรียบร้อย (ระบบว่างเปล่า)";
+          document.getElementById('statTime').textContent = "-";
+          document.getElementById('statLessons').textContent = "0";
+
+          populateEntitySelect();
+          updateBanner();
+          renderTimetable();
+          saveStateToLocalStorage();
+
+          if (typeof renderGroupsTab === 'function') renderGroupsTab();
+          if (typeof renderTeachersTab === 'function') renderTeachersTab();
+          if (typeof renderRoomsTab === 'function') renderRoomsTab();
+          if (typeof renderCoursesTab === 'function') renderCoursesTab();
+
           showToast("🗑️ ล้างข้อมูลทุกอย่างออกหมดเกลี้ยงเรียบร้อยแล้ว", "success", 3000);
-          await refreshDataManagerData();
-          await saveAndSolveCurrent();
         }
       } catch (err) {
         alert("เกิดข้อผิดพลาด: " + err.message);
@@ -2883,13 +2954,17 @@
         updateBanner();
         saveStateToLocalStorage();
 
-        if (newSolveResult && newSolveResult.is_success && newSolveResult.schedule && newSolveResult.schedule.length > 0) {
+        if (newSolveResult && newSolveResult.is_success && Array.isArray(newSolveResult.schedule)) {
           solveResult = newSolveResult;
           renderTimetable();
-          showToast(`✅ บันทึกและจัดตารางตามข้อมูลล่าสุดสำเร็จ (${solveResult.total_lessons_scheduled} รายการ)`, "success", 4000);
           document.getElementById('statusInfo').textContent = `สถานะ: ${solveResult.message || solveResult.status}`;
           document.getElementById('statTime').textContent = `${solveResult.execution_time_seconds || '-'} วินาที`;
           document.getElementById('statLessons').textContent = `${solveResult.total_lessons_scheduled || 0}`;
+          if (solveResult.total_lessons_scheduled > 0) {
+            showToast(`✅ บันทึกและจัดตารางตามข้อมูลล่าสุดสำเร็จ (${solveResult.total_lessons_scheduled} รายการ)`, "success", 4000);
+          } else {
+            showToast("ℹ️ ระบบว่างเปล่า ไม่มีรายวิชาที่ต้องจัดตาราง", "info", 3000);
+          }
         } else {
           showToast(`⚠️ บันทึกข้อมูลเรียบร้อย แต่ ${newSolveResult?.message || 'ไม่สามารถจัดตารางได้ครบตามเงื่อนไข'}`, "warning", 6000);
           if (newSolveResult) {

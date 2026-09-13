@@ -1209,6 +1209,7 @@
             <span>✅ นำเข้าข้อมูลสำเร็จเรียบร้อย!</span>
           </div>
           <div>• นำเข้ารายวิชาและแผนการสอน: <strong>${result.imported_count}</strong> รายการ</div>
+          ${result.skipped_count ? `<div>• ข้ามแถวที่ไม่ใช่รายวิชา (หัวข้อหมวด/ยอดรวม/ไม่มีรหัส): <strong>${result.skipped_count}</strong> แถว</div>` : ''}
           <div>• ครูผู้สอนใหม่ที่ตรวจพบและลงทะเบียนให้: <strong>${result.new_teachers_count}</strong> ท่าน</div>
           <div>• กลุ่มผู้เรียนใหม่ที่ตรวจพบและลงทะเบียนให้: <strong>${result.new_groups_count}</strong> กลุ่ม</div>
           <div>• รวมแผนการสอนทั้งหมดในระบบ: <strong>${result.total_assignments}</strong> รายการ</div>

@@ -378,20 +378,55 @@ class TimetableDataManager:
         self._save()
         return {"course": course_item, "assignment": assignment_item}
 
+    def _find_assignment(self, assignment_id: str) -> Optional[Dict[str, Any]]:
+        """ค้นหาแผนการสอนด้วย ID โดยรองรับทั้ง Exact Match และ Fallback Token/Course Code Match"""
+        if not assignment_id:
+            return None
+        # 1. Exact match
+        for a in self.assignments:
+            if a["id"] == assignment_id:
+                return a
+
+        # 2. Match by alphanumeric core tokens (e.g. L_1_20000_1102 matches ASS_20000_1102_G_CHO_1_1)
+        clean_id = assignment_id.replace("-", "_").replace(".", "_")
+        tokens = [t for t in clean_id.split("_") if len(t) >= 4 and not t.isdigit()]
+        if not tokens:
+            tokens = [t for t in clean_id.split("_") if len(t) >= 3]
+
+        if tokens:
+            for a in self.assignments:
+                a_clean = a["id"].replace("-", "_").replace(".", "_")
+                if all(t in a_clean for t in tokens):
+                    return a
+            for a in self.assignments:
+                a_clean = a["id"].replace("-", "_").replace(".", "_")
+                if any(t in a_clean for t in tokens):
+                    return a
+
+        # 3. Match via course code or course ID
+        for a in self.assignments:
+            c = self.courses.get(a["course_id"], {})
+            c_code = (c.get("code") or "").replace("-", "_").replace(" ", "").strip()
+            if c_code and c_code in clean_id:
+                return a
+            if a.get("course_id", "") and a["course_id"] in clean_id:
+                return a
+
+        return None
+
     def delete_course_assignment(self, assignment_id: str) -> bool:
+        target_a = self._find_assignment(assignment_id)
+        if not target_a:
+            return False
         before = len(self.assignments)
-        self.assignments = [a for a in self.assignments if a["id"] != assignment_id]
+        self.assignments = [a for a in self.assignments if a["id"] != target_a["id"]]
         if len(self.assignments) < before:
             self._save()
             return True
         return False
 
     def update_course_assignment(self, assignment_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
-        target_a = None
-        for a in self.assignments:
-            if a["id"] == assignment_id:
-                target_a = a
-                break
+        target_a = self._find_assignment(assignment_id)
         if not target_a:
             raise ValueError(f"ไม่พบแผนการสอนรหัส '{assignment_id}'")
 
@@ -439,13 +474,9 @@ class TimetableDataManager:
         return {"assignment": target_a, "course": self.courses.get(c_id)}
 
     def toggle_assignment_pin(self, assignment_id: str, is_pinned: bool, fixed_day: Optional[int] = None, fixed_start_period: Optional[int] = None, fixed_room_id: Optional[str] = None, external_teacher_name: Optional[str] = None) -> Dict[str, Any]:
-        target_a = None
-        for a in self.assignments:
-            if a["id"] == assignment_id:
-                target_a = a
-                break
+        target_a = self._find_assignment(assignment_id)
         if not target_a:
-            raise ValueError(f"ไม่พบแผนการสอนรหัส '{assignment_id}'")
+            raise ValueError(f"ไม่พบแผนการสอนรหัส '{assignment_id}' กรุณากดปุ่ม 'ประมวลผล' เพื่อรีเฟรชตารางให้ตรงกับข้อมูลปัจจุบัน")
 
         target_a["is_pinned"] = is_pinned
         if is_pinned:

@@ -118,5 +118,30 @@ class TestPinnedAssignments(unittest.TestCase):
 
         print("✅ test_conflict_checker_blocks_pinned_move_and_swap passed: Pinned lessons are protected from accidental moves and swaps")
 
+    def test_flexible_assignment_id_matching_and_unpin(self):
+        """ตรวจสอบว่า data_manager สามารถจับคู่ assignment id ที่ขึ้นต้นด้วย L_ หรือ ASS_ ได้อย่างถูกต้อง และปลดล็อกได้โดยไม่เกิด error"""
+        all_data = data_manager.get_all_data()
+        first_a = all_data["assignments"][0]
+        actual_id = first_a["id"]
+        c_id = first_a["course_id"]
+        c = next(c for c in all_data["courses"] if c["id"] == c_id)
+        c_code = c["code"]
+
+        # ล็อกวิชาไว้ก่อน
+        data_manager.toggle_assignment_pin(actual_id, True, fixed_day=0, fixed_start_period=1, fixed_room_id="ROOM_541")
+        self.assertTrue(first_a["is_pinned"])
+
+        # จำลอง Client ส่ง ID ในรูปแบบเก่า/ต่าง prefix เช่น L_1_20000_1102 หรือ Course Code
+        synthetic_id = f"L_1_{c_code.replace('-', '_')}"
+        res = client.put(f"/api/assignments/{synthetic_id}/pin", json={"is_pinned": False})
+        self.assertEqual(res.status_code, 200)
+        body = res.json()
+        self.assertTrue(body["is_success"])
+        self.assertFalse(body["data"]["is_pinned"])
+        self.assertFalse(first_a["is_pinned"])
+
+        print(f"✅ test_flexible_assignment_id_matching_and_unpin passed: Successfully matched {synthetic_id} to {actual_id} and unpinned")
+
 if __name__ == "__main__":
     unittest.main()
+

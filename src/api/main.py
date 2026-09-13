@@ -584,9 +584,10 @@ def api_pin_assignment(assignment_id: str, payload: PinAssignmentRequest):
             fixed_room_id=payload.fixed_room_id,
             external_teacher_name=payload.external_teacher_name
         )
-        return {"is_success": True, "data": res}
+        return {"is_success": True, "data": res, "assignment": res}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
 
 
 @app.post("/api/solve/current", response_model=SolveResponse)

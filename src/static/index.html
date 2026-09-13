@@ -420,6 +420,11 @@
             <span id="modalTeacher"></span>
             <span id="modalGroup"></span>
           </div>
+          <!-- Pin Status & Quick Toggle in Modal -->
+          <div id="modalPinSection" class="pt-2 border-t border-amber-200 flex items-center justify-between">
+            <span id="modalPinStatusText" class="font-medium text-[11px] text-slate-700"></span>
+            <button id="modalBtnTogglePin" type="button" class="text-xs px-2.5 py-1 rounded-md font-bold transition flex items-center gap-1 shadow-xs"></button>
+          </div>
         </div>
 
         <!-- Target Destination Form -->
@@ -1966,15 +1971,34 @@
           fixed_start_period: shouldPin ? period : null,
           fixed_room_id: shouldPin ? roomId : null
         };
-        const res = await fetch(`/api/assignments/${assignmentId}/pin`, {
+        const res = await fetch(`/api/assignments/${encodeURIComponent(assignmentId)}/pin`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
         });
         const data = await res.json();
-        if (data.is_success) {
-          if (scheduleData && scheduleData.schedule) {
-            const entry = scheduleData.schedule.find(s => s.assignment_id === assignmentId);
+        if (res.ok && data.is_success) {
+          const matchedAss = data.assignment || data.data || {};
+          const matchedAssId = matchedAss.id || assignmentId;
+
+          if (solveResult && solveResult.schedule) {
+            const entry = solveResult.schedule.find(s => 
+              s.assignment_id === assignmentId || 
+              s.assignment_id === matchedAssId ||
+              (matchedAss.course_id && s.course_id === matchedAss.course_id && s.primary_group_id === matchedAss.primary_group_id)
+            );
+            if (entry) {
+              entry.is_pinned = shouldPin;
+              entry.fixed_day = payload.fixed_day;
+              entry.fixed_start_period = payload.fixed_start_period;
+              entry.fixed_room_id = payload.fixed_room_id;
+              entry.assignment_id = matchedAssId;
+            }
+            saveStateToLocalStorage();
+          }
+
+          if (typeof scheduleData !== 'undefined' && scheduleData && scheduleData.schedule) {
+            const entry = scheduleData.schedule.find(s => s.assignment_id === assignmentId || s.assignment_id === matchedAssId);
             if (entry) {
               entry.is_pinned = shouldPin;
               entry.fixed_day = payload.fixed_day;
@@ -1982,16 +2006,19 @@
               entry.fixed_room_id = payload.fixed_room_id;
             }
           }
-          await loadFullDataManager();
+
+          if (typeof loadFullDataManager === 'function') {
+            await loadFullDataManager();
+          }
           renderTimetable();
           const actionMsg = shouldPin ? '📌 ล็อกคาบเรียนตายตัวเรียบร้อยแล้ว (AI Solver จะไม่ย้ายวิชานี้)' : '🔓 ปลดล็อกคาบเรียนเรียบร้อยแล้ว';
-          alert(actionMsg);
+          showToast(actionMsg, 'success', 3000);
         } else {
-          alert('ไม่สามารถล็อก/ปลดล็อกได้: ' + (data.detail || 'เกิดข้อผิดพลาด'));
+          showToast('ไม่สามารถล็อก/ปลดล็อกได้: ' + (data.detail || 'เกิดข้อผิดพลาด'), 'error', 4500);
         }
       } catch (err) {
         console.error(err);
-        alert('เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์');
+        showToast('เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์', 'error', 3500);
       }
     }
 
@@ -2276,6 +2303,29 @@
           if (r.id === lesson.room_id) opt.selected = true;
           roomSelect.appendChild(opt);
         });
+      }
+
+      // Configure Pin/Unpin button in modal
+      const pinStatusText = document.getElementById('modalPinStatusText');
+      const pinBtn = document.getElementById('modalBtnTogglePin');
+      if (pinStatusText && pinBtn) {
+        if (lesson.is_pinned) {
+          pinStatusText.innerHTML = `<span class="text-amber-800 font-bold flex items-center gap-1">🔒 สถานะ: ล็อกเวลาตายตัวไว้ (AI จะไม่ย้ายวิชานี้)</span>`;
+          pinBtn.className = "text-xs px-3 py-1.5 rounded-md font-bold transition flex items-center gap-1 shadow-xs bg-amber-600 hover:bg-amber-700 text-white cursor-pointer";
+          pinBtn.innerHTML = `<span>🔓 ปลดล็อกคาบนี้</span>`;
+          pinBtn.onclick = async () => {
+            await toggleQuickPin(null, assignmentId, false);
+            closeEditModal();
+          };
+        } else {
+          pinStatusText.innerHTML = `<span class="text-slate-600 flex items-center gap-1">🔓 จัดวางอิสระ (ยังไม่ได้ล็อก)</span>`;
+          pinBtn.className = "text-xs px-3 py-1.5 rounded-md font-bold transition flex items-center gap-1 shadow-xs bg-indigo-600 hover:bg-indigo-700 text-white cursor-pointer";
+          pinBtn.innerHTML = `<span>📌 ล็อกคาบนี้ไว้</span>`;
+          pinBtn.onclick = async () => {
+            await toggleQuickPin(null, assignmentId, true, lesson.day, lesson.start_period, lesson.room_id);
+            closeEditModal();
+          };
+        }
       }
 
       document.getElementById('editModal').classList.remove('hidden');

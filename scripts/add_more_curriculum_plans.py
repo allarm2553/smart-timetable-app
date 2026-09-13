@@ -65,8 +65,8 @@ def add_additional_curriculum_plans():
         (files["PVC"], "2.2570", "G_CHO_2_1", "ชอ.2/1 (ปวช.2)", "VOC_CERT", False),
         (files["PVC"], "1.2571", "G_CHO_3_1", "ชอ.3/1 (ปวช.3)", "VOC_CERT", False),
         (files["PVC"], "2.2571", "G_CHO_3_2", "ชอ.3/2 (ปวช.3 ฝึกงาน)", "VOC_CERT", True),
-        (files["PVS"], "2.2570", "G_PVS_2_1", "สอ.2/1 (ปวส.2 ทวิ ฝึกงาน)", "HIGH_VOC_CERT", True),
-        (files["PVS_M6"], "2.2570", "G_PVS_M6_2_1", "สอ.2/2 (ปวส.2 ม.6 ทวิ ฝึกงาน)", "HIGH_VOC_CERT", True)
+        (files["PVS"], "2.2570", "G_PVS_2_1", "ชอ.2/1 (ปวส.2 ทวิ ฝึกงาน)", "HIGH_VOC_CERT", True),
+        (files["PVS_M6"], "2.2570", "G_PVS_M6_2_1", "ชอ.2/2 (ปวส.2 ม.6 ทวิ ฝึกงาน)", "HIGH_VOC_CERT", True)
     ]
 
     for fpath, sname, gid, gname, level, is_intern in new_plans:

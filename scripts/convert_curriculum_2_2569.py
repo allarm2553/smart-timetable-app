@@ -49,7 +49,7 @@ def convert_curriculum_semester_2_2569():
         },
         {
             "id": "G_PVS_1",
-            "name": "สอ.1/1 (ปวส.1 ทวิภาคี)",
+            "name": "ชอ.1/1 (ปวส.1 ทวิภาคี)",
             "level": "HIGH_VOC_CERT",
             "student_count": 20,
             "pvs_18_weeks": True,
@@ -57,7 +57,7 @@ def convert_curriculum_semester_2_2569():
         },
         {
             "id": "G_PVS_M6_1",
-            "name": "สอ.1/2 (ปวส.1 ม.6 ทวิ)",
+            "name": "ชอ.1/2 (ปวส.1 ม.6 ทวิ)",
             "level": "HIGH_VOC_CERT",
             "student_count": 20,
             "pvs_18_weeks": True,

@@ -2812,6 +2812,9 @@
             </td>
             <td class="py-2.5 px-3 text-right whitespace-nowrap">
               <div class="flex items-center justify-end space-x-1.5">
+                <button onclick="openAddGroupToCourseModal('${a.id}')" class="text-emerald-600 hover:text-emerald-800 p-1.5 hover:bg-emerald-50 rounded" title="เพิ่มกลุ่มเรียนอื่นให้กับวิชานี้ (เช่น ชอ.1/2, ชอ.1/3)">
+                  <i data-lucide="user-plus" class="w-4 h-4"></i>
+                </button>
                 <button onclick="openEditCourseModal('${a.id}')" class="text-blue-600 hover:text-blue-800 p-1.5 hover:bg-blue-50 rounded" title="แก้ไขรายละเอียดเชิงลึก (ห้อง/ล็อกคาบ/ครูร่วม)">
                   <i data-lucide="edit-3" class="w-4 h-4"></i>
                 </button>
@@ -2964,6 +2967,155 @@
       }
       renderCoursesTab();
       showToast(`✅ ปรับเปลี่ยนครูผู้สอนทุกวิชาเป็น "${tName}" สำเร็จ (${successCount} รายการ)`, 'success', 3500);
+    }
+
+    function openAddGroupToCourseModal(assignmentId) {
+      if (!fullDataManagerData || !fullDataManagerData.assignments) return;
+      const a = fullDataManagerData.assignments.find(x => x.id === assignmentId);
+      if (!a) return;
+      const c = (fullDataManagerData.courses || []).find(x => x.id === a.course_id) || {};
+
+      document.getElementById('addGroupSourceAssignmentId').value = a.id;
+      document.getElementById('addGroupCourseId').value = c.id || a.course_id;
+
+      document.getElementById('addGroupModalTitle').textContent = `เพิ่มกลุ่มเรียน: ${c.name || a.course_id}`;
+      document.getElementById('addGroupCourseCode').textContent = c.code || a.course_id;
+      document.getElementById('addGroupCourseName').textContent = c.name || '';
+      document.getElementById('addGroupPeriods').textContent = c.periods_per_session || 2;
+      
+      const roomNames = {
+        'CLASSROOM': 'ห้องทฤษฎีทั่วไป',
+        'LECTURE_HALL': 'ห้องบรรยายรวม',
+        'LAB_ENGINE': 'ศูนย์ฝึกเครื่องกล/ช่างยนต์',
+        'LAB_ELECTRIC': 'ศูนย์ฝึกไฟฟ้า/อิเล็กทรอนิกส์'
+      };
+      document.getElementById('addGroupRoomType').textContent = roomNames[c.required_room_type] || c.required_room_type || 'ห้องทั่วไป';
+
+      let typeBadge = '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-800 border border-blue-200">ทฤษฎี</span>';
+      if (c.course_type === 'THEORY_PRACTICE') {
+        typeBadge = '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-sky-100 text-sky-800 border border-sky-300">ทฤษฎี+ปฏิบัติ</span>';
+      } else if (c.course_type === 'PRACTICE') {
+        typeBadge = '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">ปฏิบัติ</span>';
+      } else if (c.course_type === 'ROTATION_BASE') {
+        typeBadge = '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">ฐานหมุนเวียน 3 สัปดาห์</span>';
+      }
+      document.getElementById('addGroupCourseBadge').innerHTML = typeBadge;
+
+      // Find which groups already take this course
+      const existingGroupsWithThisCourse = new Set(
+        fullDataManagerData.assignments
+          .filter(x => x.course_id === (c.id || a.course_id))
+          .map(x => x.primary_group_id)
+      );
+
+      // Target group options
+      const grpSelect = document.getElementById('addGroupTargetSelect');
+      let targetOpts = '';
+      let firstUnassignedGroup = null;
+      fullDataManagerData.groups.forEach(g => {
+        const already = existingGroupsWithThisCourse.has(g.id);
+        const lvl = g.level === 'VOC_CERT' ? 'ปวช.' : 'ปวส.';
+        const label = already ? `${g.name} (${lvl}) — [มีวิชานี้อยู่แล้ว]` : `${g.name} (${lvl})`;
+        targetOpts += `<option value="${g.id}">${label}</option>`;
+        if (!already && !firstUnassignedGroup) {
+          firstUnassignedGroup = g.id;
+        }
+      });
+      grpSelect.innerHTML = targetOpts;
+      if (firstUnassignedGroup) {
+        grpSelect.value = firstUnassignedGroup;
+      }
+
+      // Teacher options (default to current teacher or unassigned)
+      const tchSelect = document.getElementById('addGroupTeacherSelect');
+      let tchOpts = '<option value="T_UNASSIGNED">⚠️ รอมอบหมายครู</option>';
+      fullDataManagerData.teachers.forEach(t => {
+        const isSel = (t.id === a.teacher_id) ? 'selected' : '';
+        tchOpts += `<option value="${t.id}" ${isSel}>${t.name}</option>`;
+      });
+      tchSelect.innerHTML = tchOpts;
+
+      // Secondary Teacher options
+      const secTchSelect = document.getElementById('addGroupSecondaryTeacherSelect');
+      if (secTchSelect) {
+        secTchSelect.innerHTML = '<option value="">-- ไม่มีครูคนที่สอง (สอนเดี่ยว) --</option>' +
+          fullDataManagerData.teachers.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
+      }
+
+      // Secondary Group options
+      const secGrpSelect = document.getElementById('addGroupSecondaryGroupSelect');
+      if (secGrpSelect) {
+        secGrpSelect.innerHTML = '<option value="">-- ไม่มี (เรียนเดี่ยวกลุ่มเดียว) --</option>' +
+          fullDataManagerData.groups.map(g => `<option value="${g.id}">${g.name}</option>`).join('');
+      }
+
+      document.getElementById('addGroupModal').classList.remove('hidden');
+      lucide.createIcons();
+    }
+
+    function closeAddGroupModal() {
+      document.getElementById('addGroupModal').classList.add('hidden');
+    }
+
+    async function handleSaveAddGroupToCourse(e) {
+      e.preventDefault();
+      const courseId = document.getElementById('addGroupCourseId').value;
+      const targetGroupId = document.getElementById('addGroupTargetSelect').value;
+      const teacherId = document.getElementById('addGroupTeacherSelect').value;
+      const secTeacherId = document.getElementById('addGroupSecondaryTeacherSelect')?.value || null;
+      const secGroupId = document.getElementById('addGroupSecondaryGroupSelect')?.value || null;
+
+      if (!targetGroupId) return alert('กรุณาเลือกกลุ่มผู้เรียน');
+      if (!teacherId) return alert('กรุณาเลือกครูผู้สอน');
+      if (secGroupId && secGroupId === targetGroupId) {
+        return alert('กลุ่มเรียนร่วมต้องไม่เป็นกลุ่มเดียวกันกับกลุ่มหลัก');
+      }
+      if (secTeacherId && secTeacherId === teacherId) {
+        return alert('ครูคนที่สองต้องไม่เป็นคนเดียวกันกับครูหลัก');
+      }
+
+      const c = (fullDataManagerData.courses || []).find(x => x.id === courseId) || {};
+      const payload = {
+        course_id: c.id || courseId,
+        code: c.code || '',
+        name: c.name || '',
+        course_type: c.course_type || 'THEORY',
+        periods_per_session: c.periods_per_session || 2,
+        required_room_type: c.required_room_type || 'CLASSROOM',
+        primary_group_id: targetGroupId,
+        teacher_id: teacherId,
+        secondary_group_id: secGroupId || null,
+        secondary_teacher_id: secTeacherId || null,
+        teaching_mode: secTeacherId ? 'CO_TEACHING' : 'SINGLE',
+        is_rotation: (c.course_type === 'ROTATION_BASE')
+      };
+
+      const btn = document.getElementById('btnSubmitAddGroup');
+      const origText = btn.innerHTML;
+      btn.disabled = true;
+      btn.innerHTML = 'กำลังบันทึก...';
+
+      try {
+        const res = await fetch('/api/assignments', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const result = await res.json();
+        if (!res.ok || !result.is_success) {
+          throw new Error(result.detail || 'ไม่สามารถเพิ่มกลุ่มเรียนได้');
+        }
+
+        closeAddGroupModal();
+        await refreshDataManagerData();
+        showToast('✅ เพิ่มกลุ่มเรียนให้กับวิชานี้เรียบร้อยแล้ว', 'success', 3000);
+      } catch (err) {
+        alert('เกิดข้อผิดพลาด: ' + err.message);
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = origText;
+        lucide.createIcons();
+      }
     }
 
     function populateCourseFormDropdowns() {
@@ -4227,6 +4379,18 @@
               </div>
             </div>
           </div>
+
+          <!-- Quick Action: Add Another Group to this Course -->
+          <div class="bg-emerald-50 border border-emerald-200 rounded-lg p-2.5 flex items-center justify-between text-xs">
+            <div class="flex items-center space-x-2 text-emerald-900">
+              <i data-lucide="user-plus" class="w-4 h-4 text-emerald-600 shrink-0"></i>
+              <span>ต้องการเปิดสอนวิชานี้ให้กับกลุ่มเรียนอื่นด้วยหรือไม่?</span>
+            </div>
+            <button type="button" onclick="const curAssId = document.getElementById('editCourseAssignmentId').value; closeEditEntityModal(); openAddGroupToCourseModal(curAssId);" class="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded font-bold transition flex items-center space-x-1 shadow-2xs">
+              <i data-lucide="plus" class="w-3 h-3"></i>
+              <span>เพิ่มกลุ่มเรียนใหม่</span>
+            </button>
+          </div>
         </div>
 
         </div> <!-- End of Scrollable Form Content -->
@@ -4370,6 +4534,92 @@
         </button>
       </div>
 
+    </div>
+  </div>
+
+  <!-- Add Group to Course Modal Dialog -->
+  <div id="addGroupModal" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl shadow-2xl max-w-lg w-full border border-slate-300 overflow-hidden transform transition-all animate-in fade-in zoom-in-95 flex flex-col max-h-[90vh]">
+      
+      <!-- Modal Header -->
+      <div class="bg-emerald-700 text-white px-6 py-4 flex items-center justify-between shrink-0">
+        <div class="flex items-center space-x-2.5">
+          <span class="w-9 h-9 rounded-lg bg-emerald-800 flex items-center justify-center font-bold">
+            <i data-lucide="user-plus" class="w-5 h-5 text-white"></i>
+          </span>
+          <div>
+            <h3 class="text-base font-bold font-display" id="addGroupModalTitle">เพิ่มกลุ่มเรียนให้กับรายวิชา</h3>
+            <p class="text-xs text-emerald-100" id="addGroupModalSubtitle">เปิดสอนวิชาเดิมให้กับกลุ่มเรียนใหม่ พร้อมกำหนดครูผู้สอนประจำกลุ่ม</p>
+          </div>
+        </div>
+        <button onclick="closeAddGroupModal()" class="text-emerald-200 hover:text-white p-1 rounded-md transition">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <!-- Modal Body -->
+      <form onsubmit="handleSaveAddGroupToCourse(event)" class="p-6 space-y-4 overflow-y-auto flex-1 text-xs">
+        <input type="hidden" id="addGroupSourceAssignmentId">
+        <input type="hidden" id="addGroupCourseId">
+
+        <!-- Course Summary Card -->
+        <div class="bg-slate-50 border border-slate-200 rounded-lg p-3 space-y-1.5">
+          <div class="flex items-center justify-between">
+            <span class="font-mono font-bold text-slate-900 text-sm" id="addGroupCourseCode">20101-2001</span>
+            <span id="addGroupCourseBadge"></span>
+          </div>
+          <div class="font-bold text-slate-800 text-sm" id="addGroupCourseName">ชื่องานเครื่องยนต์</div>
+          <div class="text-[11px] text-slate-500 flex items-center gap-3 pt-1 border-t border-slate-200">
+            <span>⏱️ <strong id="addGroupPeriods">3</strong> คาบ/ครั้ง</span>
+            <span>🏢 ห้อง: <strong id="addGroupRoomType">ศูนย์ฝึกช่างยนต์</strong></span>
+          </div>
+        </div>
+
+        <!-- Group Selector -->
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">กลุ่มผู้เรียนใหม่ที่จะให้เรียนวิชานี้: *</label>
+          <select id="addGroupTargetSelect" required class="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-emerald-500">
+            <!-- Populated via JS -->
+          </select>
+          <p class="text-[11px] text-slate-500 mt-1">เลือกกลุ่มนักเรียนที่ต้องการให้ลงทะเบียนเรียนในรายวิชานี้</p>
+        </div>
+
+        <!-- Teacher Selector -->
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">ครูผู้สอนสำหรับกลุ่มนี้: *</label>
+          <select id="addGroupTeacherSelect" required class="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-emerald-500">
+            <!-- Populated via JS -->
+          </select>
+          <p class="text-[11px] text-slate-500 mt-1">สามารถเลือกครูคนเดิม หรือระบุครูท่านอื่นสำหรับกลุ่มนี้ได้อิสระ</p>
+        </div>
+
+        <!-- Optional: Co-Teacher -->
+        <div>
+          <label class="block font-medium text-slate-600 mb-1">ครูผู้สอนร่วมคนที่สอง (ถ้ามีทีมสอน 2 คน):</label>
+          <select id="addGroupSecondaryTeacherSelect" class="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-xs font-medium text-slate-700 focus:ring-2 focus:ring-emerald-500">
+            <!-- Populated via JS -->
+          </select>
+        </div>
+
+        <!-- Optional: Merged Secondary Group -->
+        <div>
+          <label class="block font-medium text-slate-600 mb-1">กลุ่มร่วม (กรณีเรียนรวม 2 กลุ่มพร้อมกันในห้องใหญ่):</label>
+          <select id="addGroupSecondaryGroupSelect" class="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-xs font-medium text-slate-700 focus:ring-2 focus:ring-emerald-500">
+            <!-- Populated via JS -->
+          </select>
+        </div>
+
+        <!-- Footer Buttons -->
+        <div class="pt-3 border-t border-slate-200 flex items-center justify-end space-x-2">
+          <button type="button" onclick="closeAddGroupModal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg transition">
+            ยกเลิก
+          </button>
+          <button type="submit" id="btnSubmitAddGroup" class="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg transition shadow-xs flex items-center space-x-1.5">
+            <i data-lucide="check-circle-2" class="w-4 h-4"></i>
+            <span>บันทึกและเพิ่มกลุ่มเรียน</span>
+          </button>
+        </div>
+      </form>
     </div>
   </div>
 

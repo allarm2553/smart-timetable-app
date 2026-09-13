@@ -336,7 +336,14 @@ class TimetableDataManager:
     # Course & Assignment CRUD
     def add_course_assignment(self, data: Dict[str, Any]) -> Dict[str, Any]:
         c_id = data.get("course_id") or f"C_{len(self.courses)+1}_{data.get('code','').replace(' ', '').replace('.', '')}"
-        a_id = data.get("id") or f"L_{len(self.assignments)+1}"
+        existing_ass_ids = {a["id"] for a in self.assignments}
+        a_id = data.get("id")
+        if not a_id or a_id in existing_ass_ids:
+            counter = len(self.assignments) + 1
+            a_id = f"L_{counter}"
+            while a_id in existing_ass_ids:
+                counter += 1
+                a_id = f"L_{counter}"
 
         course_item = {
             "id": c_id,

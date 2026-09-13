@@ -375,6 +375,60 @@ def test_inline_group_and_teacher_assignment():
     data_manager.reset_to_default()
     print("✅ test_inline_group_and_teacher_assignment passed")
 
+def test_multiple_groups_per_course_with_different_teachers():
+    """Verify that a single course can be assigned to multiple groups with different teachers"""
+    data_manager.reset_to_default()
+    all_d = data_manager.get_all_data()
+    course = all_d["courses"][0]
+
+    # Assign same course to Group 1 with Teacher 1
+    t1 = all_d["teachers"][0]["id"]
+    t2 = all_d["teachers"][1]["id"]
+    g1 = all_d["groups"][0]["id"]
+    g2 = all_d["groups"][1]["id"]
+
+    res1 = client.post("/api/assignments", json={
+        "course_id": course["id"],
+        "name": course["name"],
+        "code": course["code"],
+        "course_type": course["course_type"],
+        "periods_per_session": course["periods_per_session"],
+        "required_room_type": course["required_room_type"],
+        "primary_group_id": g1,
+        "teacher_id": t1
+    })
+    assert res1.status_code == 200
+    a1 = res1.json()["data"]["assignment"]
+    assert a1["primary_group_id"] == g1
+    assert a1["teacher_id"] == t1
+    assert a1["course_id"] == course["id"]
+
+    # Assign same course to Group 2 with Teacher 2
+    res2 = client.post("/api/assignments", json={
+        "course_id": course["id"],
+        "name": course["name"],
+        "code": course["code"],
+        "course_type": course["course_type"],
+        "periods_per_session": course["periods_per_session"],
+        "required_room_type": course["required_room_type"],
+        "primary_group_id": g2,
+        "teacher_id": t2
+    })
+    assert res2.status_code == 200
+    a2 = res2.json()["data"]["assignment"]
+    assert a2["primary_group_id"] == g2
+    assert a2["teacher_id"] == t2
+    assert a2["course_id"] == course["id"]
+    assert a1["id"] != a2["id"]
+
+    # Verify Timetable Solver successfully schedules both
+    solve_res = client.post("/api/solve/current")
+    assert solve_res.status_code == 200
+    assert solve_res.json()["is_success"] is True
+
+    data_manager.reset_to_default()
+    print("✅ test_multiple_groups_per_course_with_different_teachers passed")
+
 if __name__ == "__main__":
     orig_data = data_manager.get_all_data()
     try:
@@ -388,6 +442,7 @@ if __name__ == "__main__":
         test_process_import_replace_and_solve()
         test_theory_practice_course_type()
         test_inline_group_and_teacher_assignment()
+        test_multiple_groups_per_course_with_different_teachers()
         print("\n🎉 ALL BULK IMPORTER TESTS PASSED SUCCESSFULLY! 🎉")
     finally:
         data_manager.teachers = orig_data["teachers"]

@@ -60,5 +60,12 @@ uvicorn src.api.main:app --reload --port 8000
 
 ### 3. รันการทดสอบ (Automated Tests)
 ```bash
-.venv/bin/python -m tests.test_api
+python3 -m unittest discover -s tests -p "test_*.py"
 ```
+
+---
+
+## 📖 คู่มือการใช้งานและเอกสารอ้างอิง
+- **คู่มือการใช้งานระบบฉบับสมบูรณ์ (User Manual)**: [USER_MANUAL.md](file:///Users/allarmmac/.gemini/antigravity/scratch/smart-timetable-app/USER_MANUAL.md)
+- **สเปกและความสามารถ V.2 (Walkthrough)**: [walkthrough.md](file:///Users/allarmmac/.gemini/antigravity/brain/ca5268e5-8c42-4d17-8fd2-7362d42610ec/walkthrough.md)
+- **Antigravity Skill Blueprint**: [.agents/skills/smart-timetable-vocational/SKILL.md](file:///Users/allarmmac/.gemini/antigravity/scratch/smart-timetable-app/.agents/skills/smart-timetable-vocational/SKILL.md)

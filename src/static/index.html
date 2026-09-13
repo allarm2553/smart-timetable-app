@@ -3625,10 +3625,10 @@
 
   <!-- Edit Entity Modal Dialog -->
   <div id="editEntityModal" class="hidden fixed inset-0 z-[60] bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-    <div class="bg-white rounded-xl shadow-2xl max-w-lg w-full border border-slate-300 overflow-hidden transform transition-all animate-in fade-in zoom-in-95">
+    <div class="bg-white rounded-xl shadow-2xl max-w-lg w-full border border-slate-300 overflow-hidden transform transition-all animate-in fade-in zoom-in-95 flex flex-col max-h-[90vh]">
       
       <!-- Modal Header -->
-      <div class="bg-blue-600 text-white px-6 py-4 flex items-center justify-between">
+      <div class="bg-blue-600 text-white px-6 py-4 flex items-center justify-between shrink-0">
         <div class="flex items-center space-x-2.5">
           <span class="w-8 h-8 rounded-lg bg-blue-700 flex items-center justify-center font-bold">
             <i data-lucide="edit-3" class="w-4 h-4 text-white"></i>
@@ -3642,9 +3642,12 @@
       </div>
       
       <!-- Modal Body Form -->
-      <form id="editEntityForm" novalidate onsubmit="handleSaveEditEntity(event)" class="p-6 space-y-4 text-xs">
+      <form id="editEntityForm" novalidate onsubmit="handleSaveEditEntity(event)" class="flex flex-col flex-1 overflow-hidden min-h-0">
         <input type="hidden" id="editEntityType" value="">
         <input type="hidden" id="editEntityId" value="">
+
+        <!-- Scrollable Form Content -->
+        <div class="p-6 overflow-y-auto flex-1 space-y-4 text-xs">
 
         <!-- Group Form Section -->
         <div id="editGroupSection" class="hidden space-y-3">
@@ -3859,12 +3862,14 @@
           </div>
         </div>
 
-        <!-- Footer Buttons -->
-        <div class="pt-4 border-t border-slate-200 flex items-center justify-end space-x-2">
+        </div> <!-- End of Scrollable Form Content -->
+
+        <!-- Sticky Footer Buttons (Always Visible at bottom) -->
+        <div class="bg-slate-100 px-6 py-3.5 border-t border-slate-300 flex items-center justify-end space-x-2.5 shrink-0">
           <button type="button" onclick="closeEditEntityModal()" class="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded text-xs font-display transition">
             ยกเลิก
           </button>
-          <button type="button" id="btnSubmitEditEntity" onclick="handleSaveEditEntity(event)" class="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded text-xs font-display transition shadow-xs flex items-center space-x-1.5 cursor-pointer">
+          <button type="button" id="btnSubmitEditEntity" onclick="handleSaveEditEntity(event)" class="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded text-xs font-display transition shadow-xs flex items-center space-x-1.5 cursor-pointer">
             <i data-lucide="check" class="w-4 h-4"></i>
             <span>บันทึกการแก้ไข</span>
           </button>
@@ -3875,10 +3880,10 @@
 
   <!-- Bulk Import Modal Dialog -->
   <div id="importModal" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-    <div class="bg-white rounded-xl shadow-2xl max-w-xl w-full border border-slate-300 overflow-hidden transform transition-all animate-in fade-in zoom-in-95">
+    <div class="bg-white rounded-xl shadow-2xl max-w-xl w-full border border-slate-300 overflow-hidden transform transition-all animate-in fade-in zoom-in-95 flex flex-col max-h-[90vh]">
       
       <!-- Modal Header -->
-      <div class="bg-indigo-900 text-white px-6 py-4 flex items-center justify-between">
+      <div class="bg-indigo-900 text-white px-6 py-4 flex items-center justify-between shrink-0">
         <div class="flex items-center space-x-2.5">
           <span class="w-9 h-9 rounded-lg bg-indigo-700 flex items-center justify-center font-bold">
             <i data-lucide="file-up" class="w-5 h-5 text-amber-400"></i>
@@ -3894,7 +3899,7 @@
       </div>
 
       <!-- Modal Body -->
-      <div class="p-6 space-y-4">
+      <div class="p-6 space-y-4 overflow-y-auto flex-1">
 
         <!-- Alternative: Import Project JSON Bundle -->
         <div class="bg-blue-50 border border-blue-200 rounded-lg p-3 flex items-center justify-between">
@@ -3981,10 +3986,10 @@
 
   <!-- Teacher Unavailable Slots Modal Dialog -->
   <div id="teacherSlotsModal" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-    <div class="bg-white rounded-xl shadow-2xl max-w-3xl w-full border border-slate-300 overflow-hidden transform transition-all animate-in fade-in zoom-in-95">
+    <div class="bg-white rounded-xl shadow-2xl max-w-3xl w-full border border-slate-300 overflow-hidden transform transition-all animate-in fade-in zoom-in-95 flex flex-col max-h-[90vh]">
       
       <!-- Modal Header -->
-      <div class="bg-amber-600 text-white px-6 py-4 flex items-center justify-between">
+      <div class="bg-amber-600 text-white px-6 py-4 flex items-center justify-between shrink-0">
         <div class="flex items-center space-x-2.5">
           <span class="w-9 h-9 rounded-lg bg-amber-700 flex items-center justify-center font-bold">
             <i data-lucide="clock" class="w-5 h-5 text-white"></i>
@@ -4000,7 +4005,7 @@
       </div>
 
       <!-- Modal Body -->
-      <div class="p-5 space-y-4">
+      <div class="p-5 space-y-4 overflow-y-auto flex-1">
         
         <!-- Quick Presets -->
         <div class="bg-slate-50 p-3 rounded-lg border border-slate-200">

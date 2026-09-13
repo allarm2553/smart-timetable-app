@@ -2845,10 +2845,19 @@
     }
 
     async function handleSaveEditEntity(e) {
-      e.preventDefault();
+      if (e && e.preventDefault) e.preventDefault();
       const type = document.getElementById('editEntityType').value;
       const id = document.getElementById('editEntityId').value;
       if (!type || !id) return;
+
+      const btn = document.getElementById('btnSubmitEditEntity');
+      let oldHtml = '';
+      if (btn) {
+        oldHtml = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i><span>กำลังบันทึก...</span>';
+        if (window.lucide) lucide.createIcons();
+      }
 
       try {
         let url = '';
@@ -2859,7 +2868,10 @@
           const name = document.getElementById('editGroupName').value.trim();
           const level = document.getElementById('editGroupLevel').value;
           const student_count = parseInt(document.getElementById('editGroupCount').value) || 20;
-          if (!name) return alert('กรุณาระบุชื่อกลุ่มเรียน');
+          if (!name) {
+            alert('กรุณาระบุชื่อกลุ่มเรียน');
+            return;
+          }
           body = { name, level, student_count, pvs_18_weeks: (level === 'VOC_CERT') };
         } else if (type === 'teacher') {
           url = `/api/teachers/${id}`;
@@ -2867,14 +2879,20 @@
           const is_head = document.getElementById('editTeacherIsHead').value === 'true';
           const max_periods_per_day = parseInt(document.getElementById('editTeacherMaxDay').value) || 6;
           const max_periods_per_week = parseInt(document.getElementById('editTeacherMaxWeek').value) || (is_head ? 28 : 34);
-          if (!name) return alert('กรุณาระบุชื่อครูผู้สอน');
+          if (!name) {
+            alert('กรุณาระบุชื่อครูผู้สอน');
+            return;
+          }
           body = { name, is_head, max_periods_per_day, max_periods_per_week };
         } else if (type === 'room') {
           url = `/api/rooms/${id}`;
           const name = document.getElementById('editRoomName').value.trim();
           const room_type = document.getElementById('editRoomType').value;
           const capacity = parseInt(document.getElementById('editRoomCap').value) || 35;
-          if (!name) return alert('กรุณาระบุชื่อห้องเรียน');
+          if (!name) {
+            alert('กรุณาระบุชื่อห้องเรียน');
+            return;
+          }
           body = { name, room_type, capacity };
         } else if (type === 'course') {
           url = `/api/assignments/${id}`;
@@ -2890,9 +2908,18 @@
           const is_rotation = (course_type === 'ROTATION_BASE');
           const teaching_mode = secondary_teacher_id ? 'CO_TEACHING' : 'SINGLE';
 
-          if (!name) return alert('กรุณาระบุชื่อวิชา');
-          if (!primary_group_id) return alert('กรุณาเลือกกลุ่มเรียนหลัก');
-          if (!teacher_id) return alert('กรุณาเลือกครูผู้สอนหลัก');
+          if (!name) {
+            alert('กรุณาระบุชื่อวิชา');
+            return;
+          }
+          if (!primary_group_id) {
+            alert('กรุณาเลือกกลุ่มเรียนหลัก');
+            return;
+          }
+          if (!teacher_id) {
+            alert('กรุณาเลือกครูผู้สอนหลัก');
+            return;
+          }
 
           body = {
             name,
@@ -2919,12 +2946,23 @@
         if (res.ok && data.is_success) {
           closeEditEntityModal();
           await refreshDataManagerData();
+          try {
+            const resData = await fetch('/api/data');
+            benchmarkData = await resData.json();
+            populateEntitySelect();
+          } catch (err) {}
           showToast('บันทึกการแก้ไขข้อมูลเรียบร้อยแล้ว', 'success', 3000);
         } else {
           alert('ไม่สามารถบันทึกการแก้ไขได้: ' + (data.detail || 'ข้อผิดพลาด'));
         }
       } catch (err) {
         alert('เกิดข้อผิดพลาดในการบันทึก: ' + err.message);
+      } finally {
+        if (btn && oldHtml) {
+          btn.disabled = false;
+          btn.innerHTML = oldHtml;
+          if (window.lucide) lucide.createIcons();
+        }
       }
     }
 
@@ -3292,7 +3330,7 @@
       </div>
       
       <!-- Modal Body Form -->
-      <form id="editEntityForm" onsubmit="handleSaveEditEntity(event)" class="p-6 space-y-4 text-xs">
+      <form id="editEntityForm" novalidate onsubmit="handleSaveEditEntity(event)" class="p-6 space-y-4 text-xs">
         <input type="hidden" id="editEntityType" value="">
         <input type="hidden" id="editEntityId" value="">
 
@@ -3304,7 +3342,7 @@
           </div>
           <div>
             <label class="block text-slate-700 font-bold mb-1">ชื่อกลุ่มเรียน *</label>
-            <input type="text" id="editGroupName" required class="w-full border border-slate-300 rounded px-3 py-2 text-slate-800 focus:ring-2 focus:ring-blue-500">
+            <input type="text" id="editGroupName" class="w-full border border-slate-300 rounded px-3 py-2 text-slate-800 focus:ring-2 focus:ring-blue-500">
           </div>
           <div>
             <label class="block text-slate-700 font-bold mb-1">ระดับชั้น</label>
@@ -3327,7 +3365,7 @@
           </div>
           <div>
             <label class="block text-slate-700 font-bold mb-1">ชื่อ-นามสกุล ครูผู้สอน *</label>
-            <input type="text" id="editTeacherName" required class="w-full border border-slate-300 rounded px-3 py-2 text-slate-800 focus:ring-2 focus:ring-blue-500">
+            <input type="text" id="editTeacherName" class="w-full border border-slate-300 rounded px-3 py-2 text-slate-800 focus:ring-2 focus:ring-blue-500">
           </div>
           <div>
             <label class="block text-slate-700 font-bold mb-1">บทบาท / เพดานภาระงานสอน</label>
@@ -3356,7 +3394,7 @@
           </div>
           <div>
             <label class="block text-slate-700 font-bold mb-1">ชื่อห้องเรียน/ศูนย์ฝึก *</label>
-            <input type="text" id="editRoomName" required class="w-full border border-slate-300 rounded px-3 py-2 text-slate-800 focus:ring-2 focus:ring-blue-500">
+            <input type="text" id="editRoomName" class="w-full border border-slate-300 rounded px-3 py-2 text-slate-800 focus:ring-2 focus:ring-blue-500">
           </div>
           <div>
             <label class="block text-slate-700 font-bold mb-1">ประเภทห้องเรียน</label>
@@ -3386,7 +3424,7 @@
             </div>
             <div class="col-span-2">
               <label class="block text-slate-700 font-bold mb-1">ชื่อวิชา *</label>
-              <input type="text" id="editCourseName" required class="w-full border border-slate-300 rounded px-3 py-2">
+              <input type="text" id="editCourseName" class="w-full border border-slate-300 rounded px-3 py-2">
             </div>
           </div>
           <div class="grid grid-cols-2 gap-2">
@@ -3417,7 +3455,7 @@
             <div class="grid grid-cols-2 gap-2">
               <div>
                 <label class="block text-slate-500 text-[11px] mb-0.5">กลุ่มหลัก *</label>
-                <select id="editCoursePrimaryGroup" required class="w-full border border-slate-300 rounded px-2.5 py-1.5 bg-white"></select>
+                <select id="editCoursePrimaryGroup" class="w-full border border-slate-300 rounded px-2.5 py-1.5 bg-white"></select>
               </div>
               <div>
                 <label class="block text-slate-500 text-[11px] mb-0.5">กลุ่มร่วม (ถ้าเรียนรวม 2 กลุ่ม)</label>
@@ -3430,7 +3468,7 @@
             <div class="grid grid-cols-2 gap-2">
               <div>
                 <label class="block text-slate-500 text-[11px] mb-0.5">ครูผู้สอนหลัก *</label>
-                <select id="editCourseTeacher" required class="w-full border border-slate-300 rounded px-2.5 py-1.5 bg-white"></select>
+                <select id="editCourseTeacher" class="w-full border border-slate-300 rounded px-2.5 py-1.5 bg-white"></select>
               </div>
               <div>
                 <label class="block text-slate-500 text-[11px] mb-0.5">ครูผู้สอนร่วม (ถ้ามีทีมสอน 2 คน)</label>
@@ -3445,7 +3483,7 @@
           <button type="button" onclick="closeEditEntityModal()" class="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded text-xs font-display transition">
             ยกเลิก
           </button>
-          <button type="submit" class="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded text-xs font-display transition shadow-xs flex items-center space-x-1.5">
+          <button type="button" id="btnSubmitEditEntity" onclick="handleSaveEditEntity(event)" class="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded text-xs font-display transition shadow-xs flex items-center space-x-1.5 cursor-pointer">
             <i data-lucide="check" class="w-4 h-4"></i>
             <span>บันทึกการแก้ไข</span>
           </button>

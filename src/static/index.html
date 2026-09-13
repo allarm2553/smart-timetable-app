@@ -898,21 +898,39 @@
       btn.disabled = true;
 
       try {
-        const res = await fetch('/api/solve/benchmark', { method: 'POST' });
+        const res = await fetch('/api/solve/current', { method: 'POST' });
         if (!res.ok) {
           const errText = await res.text();
           throw new Error(errText || `Server error (${res.status})`);
         }
-        solveResult = await res.json();
+        const newSolveResult = await res.json();
 
-        document.getElementById('statusInfo').textContent = `สถานะ: จัดตารางสำเร็จ (${solveResult.status})`;
-        document.getElementById('statTime').textContent = `${solveResult.execution_time_seconds} วินาที`;
-        document.getElementById('statLessons').textContent = `${solveResult.total_lessons_scheduled}`;
+        // โหลดข้อมูลล่าสุดจาก Data Manager ด้วย
+        try {
+          const resData = await fetch('/api/data');
+          benchmarkData = await resData.json();
+        } catch (e) {}
 
-        populateEntitySelect();
-        updateBanner();
-        renderTimetable();
-        saveStateToLocalStorage();
+        if (newSolveResult && newSolveResult.is_success && newSolveResult.schedule && newSolveResult.schedule.length > 0) {
+          solveResult = newSolveResult;
+          document.getElementById('statusInfo').textContent = `สถานะ: จัดตารางสำเร็จ (${solveResult.status})`;
+          document.getElementById('statTime').textContent = `${solveResult.execution_time_seconds} วินาที`;
+          document.getElementById('statLessons').textContent = `${solveResult.total_lessons_scheduled}`;
+
+          populateEntitySelect();
+          updateBanner();
+          renderTimetable();
+          saveStateToLocalStorage();
+          showToast(`✅ จัดตารางตามข้อมูลล่าสุดสำเร็จ (${solveResult.total_lessons_scheduled} รายการ)`, "success", 4000);
+        } else {
+          showToast(`⚠️ ${newSolveResult?.message || 'ไม่สามารถจัดตารางได้ครบตามเงื่อนไข'}`, "warning", 6000);
+          if (newSolveResult) {
+            document.getElementById('statusInfo').textContent = `สถานะ: ${newSolveResult.message || newSolveResult.status}`;
+            if (newSolveResult.execution_time_seconds) {
+              document.getElementById('statTime').textContent = `${newSolveResult.execution_time_seconds} วินาที`;
+            }
+          }
+        }
       } catch (err) {
         alert("เกิดข้อผิดพลาด: " + err.message);
       } finally {
@@ -3235,12 +3253,8 @@
         if (res.ok && data.is_success) {
           closeEditEntityModal();
           await refreshDataManagerData();
-          try {
-            const resData = await fetch('/api/data');
-            benchmarkData = await resData.json();
-            populateEntitySelect();
-          } catch (err) {}
-          showToast('บันทึกการแก้ไขข้อมูลเรียบร้อยแล้ว', 'success', 3000);
+          showToast('บันทึกการแก้ไขข้อมูลเรียบร้อยแล้ว กำลังจัดตารางใหม่...', 'info', 2500);
+          await saveAndSolveCurrent();
         } else {
           alert('ไม่สามารถบันทึกการแก้ไขได้: ' + (data.detail || 'ข้อผิดพลาด'));
         }

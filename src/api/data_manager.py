@@ -186,6 +186,22 @@ class TimetableDataManager:
             return True
         return False
 
+    def update_teacher(self, teacher_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
+        for t in self.teachers:
+            if t["id"] == teacher_id:
+                if "name" in data and data["name"]:
+                    t["name"] = data["name"]
+                if "is_head" in data:
+                    t["is_head"] = bool(data["is_head"])
+                    t["max_periods_per_week"] = 28 if t["is_head"] else 34
+                if "max_periods_per_day" in data:
+                    t["max_periods_per_day"] = int(data["max_periods_per_day"])
+                if "max_periods_per_week" in data:
+                    t["max_periods_per_week"] = min(int(data["max_periods_per_week"]), 35)
+                self._save()
+                return t
+        raise ValueError(f"ไม่พบครูผู้สอนรหัส '{teacher_id}'")
+
     def update_teacher_unavailable_slots(self, teacher_id: str, slots: List[List[int]]) -> bool:
         for t in self.teachers:
             if t["id"] == teacher_id:
@@ -217,6 +233,19 @@ class TimetableDataManager:
             return True
         return False
 
+    def update_room(self, room_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
+        for r in self.rooms:
+            if r["id"] == room_id:
+                if "name" in data and data["name"]:
+                    r["name"] = data["name"]
+                if "room_type" in data and data["room_type"]:
+                    r["room_type"] = data["room_type"]
+                if "capacity" in data:
+                    r["capacity"] = int(data["capacity"])
+                self._save()
+                return r
+        raise ValueError(f"ไม่พบห้องเรียนรหัส '{room_id}'")
+
     # Groups CRUD
     def add_group(self, group_data: Dict[str, Any]) -> Dict[str, Any]:
         g_id = group_data.get("id") or f"G_{len(self.groups)+1}"
@@ -226,7 +255,8 @@ class TimetableDataManager:
             "id": g_id,
             "name": group_data["name"],
             "level": group_data.get("level", EducationLevel.VOC_CERT.value),
-            "student_count": int(group_data.get("student_count", 20))
+            "student_count": int(group_data.get("student_count", 20)),
+            "pvs_18_weeks": bool(group_data.get("pvs_18_weeks", True))
         }
         self.groups.append(new_group)
         self._save()
@@ -240,6 +270,21 @@ class TimetableDataManager:
             self._save()
             return True
         return False
+
+    def update_group(self, group_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
+        for g in self.groups:
+            if g["id"] == group_id:
+                if "name" in data and data["name"]:
+                    g["name"] = data["name"]
+                if "level" in data and data["level"]:
+                    g["level"] = data["level"]
+                if "student_count" in data:
+                    g["student_count"] = int(data["student_count"])
+                if "pvs_18_weeks" in data:
+                    g["pvs_18_weeks"] = bool(data["pvs_18_weeks"])
+                self._save()
+                return g
+        raise ValueError(f"ไม่พบกลุ่มเรียนรหัส '{group_id}'")
 
     # Course & Assignment CRUD
     def add_course_assignment(self, data: Dict[str, Any]) -> Dict[str, Any]:
@@ -270,6 +315,7 @@ class TimetableDataManager:
             "teaching_mode": data.get("teaching_mode", "SINGLE")
         }
         self.assignments.append(assignment_item)
+        self._sanitize_data()
         self._save()
         return {"course": course_item, "assignment": assignment_item}
 
@@ -280,6 +326,48 @@ class TimetableDataManager:
             self._save()
             return True
         return False
+
+    def update_course_assignment(self, assignment_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
+        target_a = None
+        for a in self.assignments:
+            if a["id"] == assignment_id:
+                target_a = a
+                break
+        if not target_a:
+            raise ValueError(f"ไม่พบแผนการสอนรหัส '{assignment_id}'")
+
+        c_id = target_a["course_id"]
+        if c_id in self.courses:
+            c = self.courses[c_id]
+            if "name" in data and data["name"]:
+                c["name"] = data["name"]
+            if "code" in data:
+                c["code"] = data["code"]
+            if "periods_per_session" in data:
+                c["periods_per_session"] = int(data["periods_per_session"])
+            if "course_type" in data and data["course_type"]:
+                c["course_type"] = data["course_type"]
+            if "required_room_type" in data and data["required_room_type"]:
+                c["required_room_type"] = data["required_room_type"]
+            if "allow_merge" in data:
+                c["allow_merge"] = bool(data["allow_merge"])
+
+        if "primary_group_id" in data and data["primary_group_id"]:
+            target_a["primary_group_id"] = data["primary_group_id"]
+        if "secondary_group_id" in data:
+            target_a["secondary_group_id"] = data["secondary_group_id"] or None
+        if "teacher_id" in data and data["teacher_id"]:
+            target_a["teacher_id"] = data["teacher_id"]
+        if "secondary_teacher_id" in data:
+            target_a["secondary_teacher_id"] = data["secondary_teacher_id"] or None
+        if "is_rotation" in data:
+            target_a["is_rotation"] = bool(data["is_rotation"])
+        if "teaching_mode" in data:
+            target_a["teaching_mode"] = data["teaching_mode"]
+
+        self._sanitize_data()
+        self._save()
+        return {"assignment": target_a, "course": self.courses.get(c_id)}
 
     # Convert to domain models for solver
     def get_solver_models(self):

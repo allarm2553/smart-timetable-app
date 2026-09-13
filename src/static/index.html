@@ -2289,12 +2289,18 @@
           </td>
           <td class="py-2 px-3">${g.student_count} คน</td>
           <td class="py-2 px-3 text-right">
-            <button onclick="deleteGroup('${g.id}')" class="text-red-600 hover:text-red-800 p-1 hover:bg-red-50 rounded" title="ลบกลุ่มเรียน">
-              <i data-lucide="trash-2" class="w-4 h-4"></i>
-            </button>
+            <div class="flex items-center justify-end space-x-1.5">
+              <button onclick="openEditGroupModal('${g.id}')" class="text-blue-600 hover:text-blue-800 p-1 hover:bg-blue-50 rounded" title="แก้ไขกลุ่มเรียน">
+                <i data-lucide="edit-3" class="w-4 h-4"></i>
+              </button>
+              <button onclick="deleteGroup('${g.id}')" class="text-red-600 hover:text-red-800 p-1 hover:bg-red-50 rounded" title="ลบกลุ่มเรียน">
+                <i data-lucide="trash-2" class="w-4 h-4"></i>
+              </button>
+            </div>
           </td>
         </tr>
       `).join('');
+      lucide.createIcons();
     }
 
     function renderTeachersTab() {
@@ -2325,6 +2331,9 @@
                 <button onclick="openTeacherSlotsModal('${t.id}')" class="px-2.5 py-1 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold rounded font-display transition flex items-center space-x-1 shadow-xs" title="กำหนดเวลาที่ไม่สะดวกสอน">
                   <i data-lucide="clock" class="w-3.5 h-3.5"></i>
                   <span>กำหนดเวลา</span>
+                </button>
+                <button onclick="openEditTeacherModal('${t.id}')" class="text-blue-600 hover:text-blue-800 p-1 hover:bg-blue-50 rounded" title="แก้ไขข้อมูลครู">
+                  <i data-lucide="edit-3" class="w-4 h-4"></i>
                 </button>
                 <button onclick="deleteTeacher('${t.id}')" class="text-red-600 hover:text-red-800 p-1 hover:bg-red-50 rounded" title="ลบครูผู้สอน">
                   <i data-lucide="trash-2" class="w-4 h-4"></i>
@@ -2357,12 +2366,18 @@
           </td>
           <td class="py-2 px-3 font-bold text-slate-700">${r.capacity} ที่นั่ง</td>
           <td class="py-2 px-3 text-right">
-            <button onclick="deleteRoom('${r.id}')" class="text-red-600 hover:text-red-800 p-1 hover:bg-red-50 rounded" title="ลบห้องเรียน">
-              <i data-lucide="trash-2" class="w-4 h-4"></i>
-            </button>
+            <div class="flex items-center justify-end space-x-1.5">
+              <button onclick="openEditRoomModal('${r.id}')" class="text-blue-600 hover:text-blue-800 p-1 hover:bg-blue-50 rounded" title="แก้ไขห้องเรียน">
+                <i data-lucide="edit-3" class="w-4 h-4"></i>
+              </button>
+              <button onclick="deleteRoom('${r.id}')" class="text-red-600 hover:text-red-800 p-1 hover:bg-red-50 rounded" title="ลบห้องเรียน">
+                <i data-lucide="trash-2" class="w-4 h-4"></i>
+              </button>
+            </div>
           </td>
         </tr>
       `).join('');
+      lucide.createIcons();
     }
 
     async function handleAddGroup(e) {
@@ -2510,6 +2525,7 @@
           const t2Name = teacherMap[a.secondary_teacher_id] || a.secondary_teacher_id;
           tName += ` / ${t2Name} <span class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-teal-100 text-teal-800 border border-teal-200 ml-1">👥 ครูร่วม</span>`;
         }
+        let grpName = groupMap[a.primary_group_id] || a.primary_group_id || '-';
         if (a.secondary_group_id) {
           const g2Name = groupMap[a.secondary_group_id] || a.secondary_group_id;
           grpName += ` + ${g2Name} (เรียนรวม)`;
@@ -2533,13 +2549,19 @@
             <td class="py-2.5 px-3 font-medium text-slate-800">${grpName}</td>
             <td class="py-2.5 px-3 text-slate-700">${tName}</td>
             <td class="py-2.5 px-3 text-right">
-              <button onclick="deleteCourseAssignment('${a.id}')" class="text-red-600 hover:text-red-800 p-1 hover:bg-red-50 rounded" title="ลบวิชานี้">
-                <i data-lucide="trash-2" class="w-4 h-4"></i>
-              </button>
+              <div class="flex items-center justify-end space-x-1.5">
+                <button onclick="openEditCourseModal('${a.id}')" class="text-blue-600 hover:text-blue-800 p-1 hover:bg-blue-50 rounded" title="แก้ไขรายวิชาและผู้สอน">
+                  <i data-lucide="edit-3" class="w-4 h-4"></i>
+                </button>
+                <button onclick="deleteCourseAssignment('${a.id}')" class="text-red-600 hover:text-red-800 p-1 hover:bg-red-50 rounded" title="ลบวิชานี้">
+                  <i data-lucide="trash-2" class="w-4 h-4"></i>
+                </button>
+              </div>
             </td>
           </tr>
         `;
       }).join('');
+      lucide.createIcons();
     }
 
     function populateCourseFormDropdowns() {
@@ -2686,6 +2708,223 @@
         btn.innerHTML = oldText;
         btn.disabled = false;
         lucide.createIcons();
+      }
+    }
+
+    // --- Edit Entity Modal Functions ---
+    function openEditGroupModal(groupId) {
+      if (!fullDataManagerData || !fullDataManagerData.groups) return;
+      const g = fullDataManagerData.groups.find(x => x.id === groupId);
+      if (!g) return;
+
+      document.getElementById('editEntityType').value = 'group';
+      document.getElementById('editEntityId').value = g.id;
+      document.getElementById('editEntityModalTitle').textContent = `แก้ไขข้อมูลกลุ่มเรียน: ${g.name}`;
+      document.getElementById('editEntityModalSubtitle').textContent = `รหัสกลุ่ม ${g.id}`;
+
+      document.getElementById('editGroupId').value = g.id;
+      document.getElementById('editGroupName').value = g.name || '';
+      document.getElementById('editGroupLevel').value = g.level || 'VOC_CERT';
+      document.getElementById('editGroupCount').value = g.student_count || 20;
+
+      document.getElementById('editGroupSection').classList.remove('hidden');
+      document.getElementById('editTeacherSection').classList.add('hidden');
+      document.getElementById('editRoomSection').classList.add('hidden');
+      document.getElementById('editCourseSection').classList.add('hidden');
+
+      document.getElementById('editEntityModal').classList.remove('hidden');
+      lucide.createIcons();
+    }
+
+    function openEditTeacherModal(teacherId) {
+      if (!fullDataManagerData || !fullDataManagerData.teachers) return;
+      const t = fullDataManagerData.teachers.find(x => x.id === teacherId);
+      if (!t) return;
+
+      document.getElementById('editEntityType').value = 'teacher';
+      document.getElementById('editEntityId').value = t.id;
+      document.getElementById('editEntityModalTitle').textContent = `แก้ไขข้อมูลครูผู้สอน: ${t.name}`;
+      document.getElementById('editEntityModalSubtitle').textContent = `รหัสครู ${t.id}`;
+
+      document.getElementById('editTeacherId').value = t.id;
+      document.getElementById('editTeacherName').value = t.name || '';
+      document.getElementById('editTeacherIsHead').value = t.is_head ? 'true' : 'false';
+      document.getElementById('editTeacherMaxDay').value = t.max_periods_per_day || 6;
+      document.getElementById('editTeacherMaxWeek').value = t.max_periods_per_week || (t.is_head ? 28 : 34);
+
+      document.getElementById('editGroupSection').classList.add('hidden');
+      document.getElementById('editTeacherSection').classList.remove('hidden');
+      document.getElementById('editRoomSection').classList.add('hidden');
+      document.getElementById('editCourseSection').classList.add('hidden');
+
+      document.getElementById('editEntityModal').classList.remove('hidden');
+      lucide.createIcons();
+    }
+
+    function onTeacherIsHeadChange(val) {
+      const isHead = (val === 'true');
+      const maxWeekEl = document.getElementById('editTeacherMaxWeek');
+      if (maxWeekEl) {
+        maxWeekEl.value = isHead ? 28 : 34;
+      }
+    }
+
+    function openEditRoomModal(roomId) {
+      if (!fullDataManagerData || !fullDataManagerData.rooms) return;
+      const r = fullDataManagerData.rooms.find(x => x.id === roomId);
+      if (!r) return;
+
+      document.getElementById('editEntityType').value = 'room';
+      document.getElementById('editEntityId').value = r.id;
+      document.getElementById('editEntityModalTitle').textContent = `แก้ไขข้อมูลห้องเรียน: ${r.name}`;
+      document.getElementById('editEntityModalSubtitle').textContent = `รหัสห้อง ${r.id}`;
+
+      document.getElementById('editRoomId').value = r.id;
+      document.getElementById('editRoomName').value = r.name || '';
+      document.getElementById('editRoomType').value = r.room_type || 'CLASSROOM';
+      document.getElementById('editRoomCap').value = r.capacity || 35;
+
+      document.getElementById('editGroupSection').classList.add('hidden');
+      document.getElementById('editTeacherSection').classList.add('hidden');
+      document.getElementById('editRoomSection').classList.remove('hidden');
+      document.getElementById('editCourseSection').classList.add('hidden');
+
+      document.getElementById('editEntityModal').classList.remove('hidden');
+      lucide.createIcons();
+    }
+
+    function openEditCourseModal(assignmentId) {
+      if (!fullDataManagerData || !fullDataManagerData.assignments) return;
+      const a = fullDataManagerData.assignments.find(x => x.id === assignmentId);
+      if (!a) return;
+      const c = (fullDataManagerData.courses || []).find(x => x.id === a.course_id) || {};
+
+      document.getElementById('editEntityType').value = 'course';
+      document.getElementById('editEntityId').value = a.id;
+      document.getElementById('editEntityModalTitle').textContent = `แก้ไขรายวิชา: ${c.name || a.course_id}`;
+      document.getElementById('editEntityModalSubtitle').textContent = `รหัสแผน ${a.id} (วิชา ${c.code || c.id || '-'})`;
+
+      document.getElementById('editCourseAssignmentId').value = a.id;
+      document.getElementById('editCourseCode').value = c.code || '';
+      document.getElementById('editCourseName').value = c.name || '';
+      document.getElementById('editCourseType').value = a.is_rotation ? 'ROTATION_BASE' : (c.course_type || 'THEORY');
+      document.getElementById('editCoursePeriods').value = c.periods_per_session || 2;
+      document.getElementById('editCourseRoomType').value = c.required_room_type || 'CLASSROOM';
+
+      // Dropdowns
+      const grpSelect1 = document.getElementById('editCoursePrimaryGroup');
+      const grpSelect2 = document.getElementById('editCourseSecondaryGroup');
+      const tSelect1 = document.getElementById('editCourseTeacher');
+      const tSelect2 = document.getElementById('editCourseSecondaryTeacher');
+
+      grpSelect1.innerHTML = fullDataManagerData.groups.map(g => `<option value="${g.id}">${g.name} (${g.level === 'VOC_CERT' ? 'ปวช.' : 'ปวส.'})</option>`).join('');
+      grpSelect1.value = a.primary_group_id || '';
+
+      grpSelect2.innerHTML = '<option value="">-- ไม่มี (เรียนเดี่ยวกลุ่มเดียว) --</option>' + 
+        fullDataManagerData.groups.map(g => `<option value="${g.id}">${g.name}</option>`).join('');
+      grpSelect2.value = a.secondary_group_id || '';
+
+      tSelect1.innerHTML = fullDataManagerData.teachers.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
+      tSelect1.value = a.teacher_id || '';
+
+      tSelect2.innerHTML = '<option value="">-- ไม่มีครูคนที่สอง (สอนเดี่ยว) --</option>' + 
+        fullDataManagerData.teachers.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
+      tSelect2.value = a.secondary_teacher_id || '';
+
+      document.getElementById('editGroupSection').classList.add('hidden');
+      document.getElementById('editTeacherSection').classList.add('hidden');
+      document.getElementById('editRoomSection').classList.add('hidden');
+      document.getElementById('editCourseSection').classList.remove('hidden');
+
+      document.getElementById('editEntityModal').classList.remove('hidden');
+      lucide.createIcons();
+    }
+
+    function closeEditEntityModal() {
+      document.getElementById('editEntityModal').classList.add('hidden');
+    }
+
+    async function handleSaveEditEntity(e) {
+      e.preventDefault();
+      const type = document.getElementById('editEntityType').value;
+      const id = document.getElementById('editEntityId').value;
+      if (!type || !id) return;
+
+      try {
+        let url = '';
+        let body = {};
+
+        if (type === 'group') {
+          url = `/api/groups/${id}`;
+          const name = document.getElementById('editGroupName').value.trim();
+          const level = document.getElementById('editGroupLevel').value;
+          const student_count = parseInt(document.getElementById('editGroupCount').value) || 20;
+          if (!name) return alert('กรุณาระบุชื่อกลุ่มเรียน');
+          body = { name, level, student_count, pvs_18_weeks: (level === 'VOC_CERT') };
+        } else if (type === 'teacher') {
+          url = `/api/teachers/${id}`;
+          const name = document.getElementById('editTeacherName').value.trim();
+          const is_head = document.getElementById('editTeacherIsHead').value === 'true';
+          const max_periods_per_day = parseInt(document.getElementById('editTeacherMaxDay').value) || 6;
+          const max_periods_per_week = parseInt(document.getElementById('editTeacherMaxWeek').value) || (is_head ? 28 : 34);
+          if (!name) return alert('กรุณาระบุชื่อครูผู้สอน');
+          body = { name, is_head, max_periods_per_day, max_periods_per_week };
+        } else if (type === 'room') {
+          url = `/api/rooms/${id}`;
+          const name = document.getElementById('editRoomName').value.trim();
+          const room_type = document.getElementById('editRoomType').value;
+          const capacity = parseInt(document.getElementById('editRoomCap').value) || 35;
+          if (!name) return alert('กรุณาระบุชื่อห้องเรียน');
+          body = { name, room_type, capacity };
+        } else if (type === 'course') {
+          url = `/api/assignments/${id}`;
+          const name = document.getElementById('editCourseName').value.trim();
+          const code = document.getElementById('editCourseCode').value.trim();
+          const course_type = document.getElementById('editCourseType').value;
+          const periods_per_session = parseInt(document.getElementById('editCoursePeriods').value) || 2;
+          const required_room_type = document.getElementById('editCourseRoomType').value;
+          const primary_group_id = document.getElementById('editCoursePrimaryGroup').value;
+          const secondary_group_id = document.getElementById('editCourseSecondaryGroup').value || null;
+          const teacher_id = document.getElementById('editCourseTeacher').value;
+          const secondary_teacher_id = document.getElementById('editCourseSecondaryTeacher').value || null;
+          const is_rotation = (course_type === 'ROTATION_BASE');
+          const teaching_mode = secondary_teacher_id ? 'CO_TEACHING' : 'SINGLE';
+
+          if (!name) return alert('กรุณาระบุชื่อวิชา');
+          if (!primary_group_id) return alert('กรุณาเลือกกลุ่มเรียนหลัก');
+          if (!teacher_id) return alert('กรุณาเลือกครูผู้สอนหลัก');
+
+          body = {
+            name,
+            code,
+            periods_per_session,
+            course_type,
+            required_room_type,
+            primary_group_id,
+            secondary_group_id,
+            teacher_id,
+            secondary_teacher_id,
+            is_rotation,
+            allow_merge: !!secondary_group_id,
+            teaching_mode
+          };
+        }
+
+        const res = await fetch(url, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+        const data = await res.json();
+        if (res.ok && data.is_success) {
+          closeEditEntityModal();
+          await refreshDataManagerData();
+          showToast('บันทึกการแก้ไขข้อมูลเรียบร้อยแล้ว', 'success', 3000);
+        } else {
+          alert('ไม่สามารถบันทึกการแก้ไขได้: ' + (data.detail || 'ข้อผิดพลาด'));
+        }
+      } catch (err) {
+        alert('เกิดข้อผิดพลาดในการบันทึก: ' + err.message);
       }
     }
 
@@ -3031,6 +3270,187 @@
         </div>
       </div>
 
+    </div>
+  </div>
+
+  <!-- Edit Entity Modal Dialog -->
+  <div id="editEntityModal" class="hidden fixed inset-0 z-[60] bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl shadow-2xl max-w-lg w-full border border-slate-300 overflow-hidden transform transition-all animate-in fade-in zoom-in-95">
+      
+      <!-- Modal Header -->
+      <div class="bg-blue-600 text-white px-6 py-4 flex items-center justify-between">
+        <div class="flex items-center space-x-2.5">
+          <span class="w-8 h-8 rounded-lg bg-blue-700 flex items-center justify-center font-bold">
+            <i data-lucide="edit-3" class="w-4 h-4 text-white"></i>
+          </span>
+          <div>
+            <h3 class="text-base font-bold font-display" id="editEntityModalTitle">แก้ไขข้อมูล</h3>
+            <p class="text-xs text-blue-100" id="editEntityModalSubtitle">ปรับปรุงรายละเอียดข้อมูลในระบบ</p>
+          </div>
+        </div>
+        <button onclick="closeEditEntityModal()" class="text-blue-200 hover:text-white p-1 rounded-md transition text-2xl leading-none">&times;</button>
+      </div>
+      
+      <!-- Modal Body Form -->
+      <form id="editEntityForm" onsubmit="handleSaveEditEntity(event)" class="p-6 space-y-4 text-xs">
+        <input type="hidden" id="editEntityType" value="">
+        <input type="hidden" id="editEntityId" value="">
+
+        <!-- Group Form Section -->
+        <div id="editGroupSection" class="hidden space-y-3">
+          <div>
+            <label class="block text-slate-600 font-bold mb-1">รหัสกลุ่มเรียน (ID)</label>
+            <input type="text" id="editGroupId" disabled class="w-full bg-slate-100 border border-slate-300 rounded px-3 py-2 text-slate-500 font-mono">
+          </div>
+          <div>
+            <label class="block text-slate-700 font-bold mb-1">ชื่อกลุ่มเรียน *</label>
+            <input type="text" id="editGroupName" required class="w-full border border-slate-300 rounded px-3 py-2 text-slate-800 focus:ring-2 focus:ring-blue-500">
+          </div>
+          <div>
+            <label class="block text-slate-700 font-bold mb-1">ระดับชั้น</label>
+            <select id="editGroupLevel" class="w-full border border-slate-300 rounded px-3 py-2 bg-white">
+              <option value="VOC_CERT">ประกาศนียบัตรวิชาชีพ (ปวช.) - 18 สัปดาห์</option>
+              <option value="HIGH_VOC_CERT">ประกาศนียบัตรวิชาชีพชั้นสูง (ปวส.) - 15 สัปดาห์</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-slate-700 font-bold mb-1">จำนวนนักเรียน (คน)</label>
+            <input type="number" id="editGroupCount" min="1" max="100" class="w-full border border-slate-300 rounded px-3 py-2">
+          </div>
+        </div>
+
+        <!-- Teacher Form Section -->
+        <div id="editTeacherSection" class="hidden space-y-3">
+          <div>
+            <label class="block text-slate-600 font-bold mb-1">รหัสครูผู้สอน (ID)</label>
+            <input type="text" id="editTeacherId" disabled class="w-full bg-slate-100 border border-slate-300 rounded px-3 py-2 text-slate-500 font-mono">
+          </div>
+          <div>
+            <label class="block text-slate-700 font-bold mb-1">ชื่อ-นามสกุล ครูผู้สอน *</label>
+            <input type="text" id="editTeacherName" required class="w-full border border-slate-300 rounded px-3 py-2 text-slate-800 focus:ring-2 focus:ring-blue-500">
+          </div>
+          <div>
+            <label class="block text-slate-700 font-bold mb-1">บทบาท / เพดานภาระงานสอน</label>
+            <select id="editTeacherIsHead" onchange="onTeacherIsHeadChange(this.value)" class="w-full border border-slate-300 rounded px-3 py-2 bg-white">
+              <option value="false">ครูผู้สอนทั่วไป (เพดานสอนปกติ ≤ 34 คาบ/สัปดาห์)</option>
+              <option value="true">👑 หัวหน้างาน/ผู้บริหาร (เพดานสอนลดหย่อน ≤ 28 คาบ/สัปดาห์)</option>
+            </select>
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-slate-700 font-bold mb-1">คาบสูงสุดต่อวัน</label>
+              <input type="number" id="editTeacherMaxDay" min="1" max="12" class="w-full border border-slate-300 rounded px-3 py-2">
+            </div>
+            <div>
+              <label class="block text-slate-700 font-bold mb-1">คาบสูงสุดต่อสัปดาห์</label>
+              <input type="number" id="editTeacherMaxWeek" min="1" max="35" class="w-full border border-slate-300 rounded px-3 py-2">
+            </div>
+          </div>
+        </div>
+
+        <!-- Room Form Section -->
+        <div id="editRoomSection" class="hidden space-y-3">
+          <div>
+            <label class="block text-slate-600 font-bold mb-1">รหัสห้องเรียน (ID)</label>
+            <input type="text" id="editRoomId" disabled class="w-full bg-slate-100 border border-slate-300 rounded px-3 py-2 text-slate-500 font-mono">
+          </div>
+          <div>
+            <label class="block text-slate-700 font-bold mb-1">ชื่อห้องเรียน/ศูนย์ฝึก *</label>
+            <input type="text" id="editRoomName" required class="w-full border border-slate-300 rounded px-3 py-2 text-slate-800 focus:ring-2 focus:ring-blue-500">
+          </div>
+          <div>
+            <label class="block text-slate-700 font-bold mb-1">ประเภทห้องเรียน</label>
+            <select id="editRoomType" class="w-full border border-slate-300 rounded px-3 py-2 bg-white">
+              <option value="CLASSROOM">ห้องทฤษฎีทั่วไป (Classroom)</option>
+              <option value="LECTURE_HALL">ห้องบรรยายใหญ่ (Lecture Hall)</option>
+              <option value="LAB_ENGINE">ศูนย์ฝึกปฏิบัติการเครื่องกล/ช่างยนต์</option>
+              <option value="LAB_ELECTRIC">ศูนย์ฝึกปฏิบัติการไฟฟ้า/อิเล็กทรอนิกส์</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-slate-700 font-bold mb-1">ความจุที่นั่ง (คน)</label>
+            <input type="number" id="editRoomCap" min="1" max="200" class="w-full border border-slate-300 rounded px-3 py-2">
+          </div>
+        </div>
+
+        <!-- Course / Assignment Form Section -->
+        <div id="editCourseSection" class="hidden space-y-3">
+          <div>
+            <label class="block text-slate-600 font-bold mb-1">รหัสแผนการสอน (Assignment ID)</label>
+            <input type="text" id="editCourseAssignmentId" disabled class="w-full bg-slate-100 border border-slate-300 rounded px-3 py-2 text-slate-500 font-mono">
+          </div>
+          <div class="grid grid-cols-3 gap-2">
+            <div class="col-span-1">
+              <label class="block text-slate-700 font-bold mb-1">รหัสวิชา</label>
+              <input type="text" id="editCourseCode" class="w-full border border-slate-300 rounded px-3 py-2 font-mono">
+            </div>
+            <div class="col-span-2">
+              <label class="block text-slate-700 font-bold mb-1">ชื่อวิชา *</label>
+              <input type="text" id="editCourseName" required class="w-full border border-slate-300 rounded px-3 py-2">
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="block text-slate-700 font-bold mb-1">ประเภทวิชา</label>
+              <select id="editCourseType" class="w-full border border-slate-300 rounded px-3 py-2 bg-white">
+                <option value="THEORY">ทฤษฎี (Theory)</option>
+                <option value="PRACTICE">ปฏิบัติการ (Practice)</option>
+                <option value="ROTATION_BASE">ฐานหมุนเวียน 3 สัปดาห์</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-slate-700 font-bold mb-1">จำนวนคาบติดต่อกัน</label>
+              <input type="number" id="editCoursePeriods" min="1" max="8" class="w-full border border-slate-300 rounded px-3 py-2">
+            </div>
+          </div>
+          <div>
+            <label class="block text-slate-700 font-bold mb-1">ประเภทห้องที่ต้องการ</label>
+            <select id="editCourseRoomType" class="w-full border border-slate-300 rounded px-3 py-2 bg-white">
+              <option value="CLASSROOM">ห้องทฤษฎีทั่วไป (Classroom)</option>
+              <option value="LECTURE_HALL">ห้องบรรยายใหญ่ (Lecture Hall)</option>
+              <option value="LAB_ENGINE">ศูนย์ฝึกปฏิบัติการเครื่องกล/ช่างยนต์</option>
+              <option value="LAB_ELECTRIC">ศูนย์ฝึกปฏิบัติการไฟฟ้า/อิเล็กทรอนิกส์</option>
+            </select>
+          </div>
+          <div class="border-t border-slate-200 pt-2 space-y-2">
+            <div class="font-bold text-slate-700">กลุ่มผู้เรียนที่เรียน:</div>
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <label class="block text-slate-500 text-[11px] mb-0.5">กลุ่มหลัก *</label>
+                <select id="editCoursePrimaryGroup" required class="w-full border border-slate-300 rounded px-2.5 py-1.5 bg-white"></select>
+              </div>
+              <div>
+                <label class="block text-slate-500 text-[11px] mb-0.5">กลุ่มร่วม (ถ้าเรียนรวม 2 กลุ่ม)</label>
+                <select id="editCourseSecondaryGroup" class="w-full border border-slate-300 rounded px-2.5 py-1.5 bg-white"></select>
+              </div>
+            </div>
+          </div>
+          <div class="border-t border-slate-200 pt-2 space-y-2">
+            <div class="font-bold text-slate-700">ผู้สอน:</div>
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <label class="block text-slate-500 text-[11px] mb-0.5">ครูผู้สอนหลัก *</label>
+                <select id="editCourseTeacher" required class="w-full border border-slate-300 rounded px-2.5 py-1.5 bg-white"></select>
+              </div>
+              <div>
+                <label class="block text-slate-500 text-[11px] mb-0.5">ครูผู้สอนร่วม (ถ้ามีทีมสอน 2 คน)</label>
+                <select id="editCourseSecondaryTeacher" class="w-full border border-slate-300 rounded px-2.5 py-1.5 bg-white"></select>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Footer Buttons -->
+        <div class="pt-4 border-t border-slate-200 flex items-center justify-end space-x-2">
+          <button type="button" onclick="closeEditEntityModal()" class="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded text-xs font-display transition">
+            ยกเลิก
+          </button>
+          <button type="submit" class="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded text-xs font-display transition shadow-xs flex items-center space-x-1.5">
+            <i data-lucide="check" class="w-4 h-4"></i>
+            <span>บันทึกการแก้ไข</span>
+          </button>
+        </div>
+      </form>
     </div>
   </div>
 

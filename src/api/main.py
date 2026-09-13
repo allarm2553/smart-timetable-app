@@ -442,6 +442,14 @@ def api_add_teacher(teacher: Dict[str, Any]):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+@app.put("/api/teachers/{teacher_id}")
+def api_update_teacher(teacher_id: str, teacher: Dict[str, Any]):
+    try:
+        updated_t = data_manager.update_teacher(teacher_id, teacher)
+        return {"is_success": True, "teacher": updated_t}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
 @app.delete("/api/teachers/{teacher_id}")
 def api_delete_teacher(teacher_id: str):
     success = data_manager.delete_teacher(teacher_id)
@@ -466,6 +474,14 @@ def api_add_room(room: Dict[str, Any]):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+@app.put("/api/rooms/{room_id}")
+def api_update_room(room_id: str, room: Dict[str, Any]):
+    try:
+        updated_r = data_manager.update_room(room_id, room)
+        return {"is_success": True, "room": updated_r}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
 @app.delete("/api/rooms/{room_id}")
 def api_delete_room(room_id: str):
     success = data_manager.delete_room(room_id)
@@ -481,6 +497,14 @@ def api_add_group(group: Dict[str, Any]):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+@app.put("/api/groups/{group_id}")
+def api_update_group(group_id: str, group: Dict[str, Any]):
+    try:
+        updated_g = data_manager.update_group(group_id, group)
+        return {"is_success": True, "group": updated_g}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
 @app.delete("/api/groups/{group_id}")
 def api_delete_group(group_id: str):
     success = data_manager.delete_group(group_id)
@@ -492,6 +516,14 @@ def api_delete_group(group_id: str):
 def api_add_assignment(data: Dict[str, Any]):
     try:
         res = data_manager.add_course_assignment(data)
+        return {"is_success": True, "data": res}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.put("/api/assignments/{assignment_id}")
+def api_update_assignment(assignment_id: str, data: Dict[str, Any]):
+    try:
+        res = data_manager.update_course_assignment(assignment_id, data)
         return {"is_success": True, "data": res}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))

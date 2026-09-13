@@ -2935,8 +2935,8 @@
       const fixedDay = document.getElementById('editCourseFixedDay');
       if (fixedDay) fixedDay.value = (a.fixed_day !== undefined && a.fixed_day !== null) ? a.fixed_day : 0;
 
-      const fixedPeriod = document.getElementById('editCourseFixedStartPeriod');
-      if (fixedPeriod) fixedPeriod.value = (a.fixed_start_period !== undefined && a.fixed_start_period !== null) ? a.fixed_start_period : 1;
+      // คำนวณตัวเลือกคาบเรียนและช่วงเวลาให้สอดคล้องกับจำนวนคาบจริง (เช่น 2 คาบ -> คาบ 3-4 10:00-12:00 น.)
+      renderFixedStartPeriodOptions(c.periods_per_session || 2, a.fixed_start_period);
 
       const fixedRoom = document.getElementById('editCourseFixedRoom');
       if (fixedRoom) {
@@ -2962,12 +2962,98 @@
       lucide.createIcons();
     }
 
+    const PERIOD_TIMES_DATA = [
+      { p: 1, start: "08:00", end: "09:00" },
+      { p: 2, start: "09:00", end: "10:00" },
+      { p: 3, start: "10:00", end: "11:00" },
+      { p: 4, start: "11:00", end: "12:00" },
+      { p: 5, start: "12:00", end: "13:00", is_lunch: true },
+      { p: 6, start: "13:00", end: "14:00" },
+      { p: 7, start: "14:00", end: "15:00" },
+      { p: 8, start: "15:00", end: "16:00" },
+      { p: 9, start: "16:00", end: "17:00" },
+      { p: 10, start: "17:00", end: "18:00" },
+      { p: 11, start: "18:00", end: "19:00", is_evening: true },
+      { p: 12, start: "19:00", end: "20:00", is_evening: true }
+    ];
+
+    function renderFixedStartPeriodOptions(duration = 2, selectedStartPeriod = 1) {
+      const select = document.getElementById('editCourseFixedStartPeriod');
+      if (!select) return;
+
+      const dur = Math.max(1, parseInt(duration) || 1);
+      const validOptions = [];
+
+      for (let p = 1; p <= 12; p++) {
+        const pEnd = p + dur - 1;
+        if (pEnd > 12) continue; // เกินคาบ 12
+        // ตรวจสอบว่าทับคาบพักกลางวัน (คาบ 5) หรือไม่
+        if (p <= 5 && pEnd >= 5) continue;
+        // ตรวจสอบการข้ามช่วงกลางวัน (คาบ 1-10) ไปค่ำ (คาบ 11-12)
+        if (p <= 10 && pEnd > 10) continue;
+
+        const startTime = PERIOD_TIMES_DATA[p - 1]?.start || '';
+        const endTime = PERIOD_TIMES_DATA[pEnd - 1]?.end || '';
+        const isEvening = (p >= 11);
+        const eveningTag = isEvening ? ' [ค่ำ]' : '';
+
+        let label = '';
+        if (dur === 1) {
+          label = `คาบ ${p} (${startTime} - ${endTime} น.)${eveningTag}`;
+        } else {
+          label = `คาบ ${p}–${pEnd} (${startTime} - ${endTime} น. รวม ${dur} คาบ)${eveningTag}`;
+        }
+
+        validOptions.push({ p, pEnd, startTime, endTime, label });
+      }
+
+      select.innerHTML = validOptions.map(opt => 
+        `<option value="${opt.p}">${opt.label}</option>`
+      ).join('');
+
+      // เลือกค่าเดิมหากยังอยู่ในรายการที่ถูกต้อง
+      const matchOpt = validOptions.find(o => o.p === parseInt(selectedStartPeriod));
+      if (matchOpt) {
+        select.value = matchOpt.p;
+      } else if (validOptions.length > 0) {
+        select.value = validOptions[0].p;
+      }
+
+      updateFixedPeriodInfoBadge();
+    }
+
+    function handleEditCoursePeriodsChange() {
+      const dur = parseInt(document.getElementById('editCoursePeriods')?.value) || 2;
+      const currentSelected = parseInt(document.getElementById('editCourseFixedStartPeriod')?.value) || 1;
+      renderFixedStartPeriodOptions(dur, currentSelected);
+    }
+
+    function updateFixedPeriodInfoBadge() {
+      const select = document.getElementById('editCourseFixedStartPeriod');
+      const infoText = document.getElementById('editCourseFixedPeriodInfoText');
+      if (!select || !infoText) return;
+
+      const startP = parseInt(select.value) || 1;
+      const dur = Math.max(1, parseInt(document.getElementById('editCoursePeriods')?.value) || 1);
+      const endP = startP + dur - 1;
+
+      const startTime = PERIOD_TIMES_DATA[startP - 1]?.start || '';
+      const endTime = PERIOD_TIMES_DATA[Math.min(12, endP) - 1]?.end || '';
+
+      if (dur === 1) {
+        infoText.textContent = `ช่วงเวลาเรียนที่ล็อก: คาบที่ ${startP} (เวลา ${startTime} - ${endTime} น. รวม 1 คาบ)`;
+      } else {
+        infoText.textContent = `ช่วงเวลาเรียนที่ล็อก: คาบที่ ${startP} ถึง คาบที่ ${endP} (เวลา ${startTime} - ${endTime} น. รวม ${dur} คาบต่อเนื่อง)`;
+      }
+    }
+
     function toggleEditPinnedOptions() {
       const chk = document.getElementById('editCourseIsPinned');
       const box = document.getElementById('editCoursePinnedOptions');
       if (chk && box) {
         if (chk.checked) {
           box.classList.remove('hidden');
+          updateFixedPeriodInfoBadge();
         } else {
           box.classList.add('hidden');
         }
@@ -3628,7 +3714,7 @@
             </div>
             <div>
               <label class="block text-slate-700 font-bold mb-1">จำนวนคาบติดต่อกัน</label>
-              <input type="number" id="editCoursePeriods" min="1" max="8" class="w-full border border-slate-300 rounded px-3 py-2">
+              <input type="number" id="editCoursePeriods" min="1" max="8" oninput="handleEditCoursePeriodsChange()" class="w-full border border-slate-300 rounded px-3 py-2">
             </div>
           </div>
           <div>
@@ -3692,21 +3778,17 @@
                   </select>
                 </div>
                 <div>
-                  <label class="block text-slate-700 text-[11px] mb-0.5 font-bold">คาบเริ่มต้น *</label>
-                  <select id="editCourseFixedStartPeriod" class="w-full border border-indigo-200 rounded px-2 py-1.5 text-xs bg-white">
-                    <option value="1">คาบ 1 (08:00 - 09:00)</option>
-                    <option value="2">คาบ 2 (09:00 - 10:00)</option>
-                    <option value="3">คาบ 3 (10:00 - 11:00)</option>
-                    <option value="4">คาบ 4 (11:00 - 12:00)</option>
-                    <option value="6">คาบ 6 (13:00 - 14:00)</option>
-                    <option value="7">คาบ 7 (14:00 - 15:00)</option>
-                    <option value="8">คาบ 8 (15:00 - 16:00)</option>
-                    <option value="9">คาบ 9 (16:00 - 17:00)</option>
-                    <option value="10">คาบ 10 (17:00 - 18:00)</option>
-                    <option value="11">คาบ 11 (18:00 - 19:00 ช่วงค่ำ)</option>
-                    <option value="12">คาบ 12 (19:00 - 20:00 ช่วงค่ำ)</option>
+                  <label class="block text-slate-700 text-[11px] mb-0.5 font-bold">ช่วงคาบเรียนที่ล็อก *</label>
+                  <select id="editCourseFixedStartPeriod" onchange="updateFixedPeriodInfoBadge()" class="w-full border border-indigo-200 rounded px-2 py-1.5 text-xs bg-white">
+                    <!-- Populated dynamically by JS -->
                   </select>
                 </div>
+              </div>
+
+              <!-- Dynamic Period Info Badge -->
+              <div id="editCourseFixedPeriodInfo" class="text-[11px] bg-indigo-100/80 text-indigo-950 border border-indigo-200 rounded px-2.5 py-1.5 flex items-center gap-1.5 font-semibold shadow-xs">
+                <span>⏰</span>
+                <span id="editCourseFixedPeriodInfoText">ช่วงเวลาเรียน: กำลังคำนวณ...</span>
               </div>
               <div class="grid grid-cols-2 gap-2">
                 <div>

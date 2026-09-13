@@ -10,7 +10,14 @@ from src.solver.models import (
 from src.solver.benchmark_data import get_benchmark_dataset
 
 DATA_DIR = Path(__file__).resolve().parent.parent.parent / "data"
-CONFIG_FILE = DATA_DIR / "timetable_config.json"
+
+def get_config_file_path() -> Path:
+    env_path = os.environ.get("TIMETABLE_CONFIG_FILE")
+    if env_path:
+        return Path(env_path)
+    return DATA_DIR / "timetable_config.json"
+
+CONFIG_FILE = get_config_file_path()
 
 class TimetableDataManager:
     def __init__(self):
@@ -22,10 +29,11 @@ class TimetableDataManager:
         self._load_or_initialize()
 
     def _load_or_initialize(self):
-        DATA_DIR.mkdir(exist_ok=True)
-        if CONFIG_FILE.exists():
+        cfg_file = get_config_file_path()
+        cfg_file.parent.mkdir(exist_ok=True)
+        if cfg_file.exists():
             try:
-                with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+                with open(cfg_file, "r", encoding="utf-8") as f:
                     data = json.load(f)
                     self.teachers = data.get("teachers", [])
                     self.rooms = data.get("rooms", [])
@@ -59,8 +67,9 @@ class TimetableDataManager:
         self.assignments = clean_assignments
 
     def _save(self):
-        DATA_DIR.mkdir(exist_ok=True)
-        with open(CONFIG_FILE, "w", encoding="utf-8") as f:
+        cfg_file = get_config_file_path()
+        cfg_file.parent.mkdir(exist_ok=True)
+        with open(cfg_file, "w", encoding="utf-8") as f:
             json.dump({
                 "teachers": self.teachers,
                 "rooms": self.rooms,

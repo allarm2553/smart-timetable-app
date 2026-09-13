@@ -1,3 +1,4 @@
+import tests
 from fastapi.testclient import TestClient
 from src.api.main import app
 from src.api.data_manager import data_manager

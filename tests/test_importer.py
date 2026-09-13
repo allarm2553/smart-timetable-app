@@ -1,3 +1,4 @@
+import tests
 import base64
 from fastapi.testclient import TestClient
 from src.api.main import app

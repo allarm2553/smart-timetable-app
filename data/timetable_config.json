@@ -130,6 +130,48 @@
       "name": "ศูนย์ฝึกไฟฟ้า",
       "room_type": "LAB_ELECTRIC",
       "capacity": 45
+    },
+    {
+      "id": "LAB_EL_1",
+      "name": "ห้องปฏิบัติการอิเล็กทรอนิกส์ 1",
+      "room_type": "LAB_ELECTRIC",
+      "capacity": 40
+    },
+    {
+      "id": "LAB_EL_2",
+      "name": "ห้องปฏิบัติการอิเล็กทรอนิกส์ 2",
+      "room_type": "LAB_ELECTRIC",
+      "capacity": 40
+    },
+    {
+      "id": "LAB_EL_3",
+      "name": "ห้องปฏิบัติการระบบสมองกลและ IoT",
+      "room_type": "LAB_ELECTRIC",
+      "capacity": 40
+    },
+    {
+      "id": "LAB_EL_4",
+      "name": "ห้องปฏิบัติการโทรคมนาคมและเครือข่าย",
+      "room_type": "LAB_ELECTRIC",
+      "capacity": 40
+    },
+    {
+      "id": "ROOM_541",
+      "name": "ห้อง 541",
+      "room_type": "CLASSROOM",
+      "capacity": 35
+    },
+    {
+      "id": "ROOM_542",
+      "name": "ห้อง 542",
+      "room_type": "CLASSROOM",
+      "capacity": 35
+    },
+    {
+      "id": "ROOM_543",
+      "name": "ห้อง 543",
+      "room_type": "CLASSROOM",
+      "capacity": 35
     }
   ],
   "groups": [
@@ -156,6 +198,46 @@
       "student_count": 20,
       "pvs_18_weeks": true,
       "is_internship": false
+    },
+    {
+      "id": "G_CHO_2_1",
+      "name": "ชอ.2/1 (ปวช.2)",
+      "level": "VOC_CERT",
+      "student_count": 20,
+      "pvs_18_weeks": true,
+      "is_internship": false
+    },
+    {
+      "id": "G_CHO_3_1",
+      "name": "ชอ.3/1 (ปวช.3)",
+      "level": "VOC_CERT",
+      "student_count": 20,
+      "pvs_18_weeks": true,
+      "is_internship": false
+    },
+    {
+      "id": "G_CHO_3_2",
+      "name": "ชอ.3/2 (ปวช.3 ฝึกงาน)",
+      "level": "VOC_CERT",
+      "student_count": 20,
+      "pvs_18_weeks": true,
+      "is_internship": true
+    },
+    {
+      "id": "G_PVS_2_1",
+      "name": "สอ.2/1 (ปวส.2 ทวิ ฝึกงาน)",
+      "level": "HIGH_VOC_CERT",
+      "student_count": 20,
+      "pvs_18_weeks": true,
+      "is_internship": true
+    },
+    {
+      "id": "G_PVS_M6_2_1",
+      "name": "สอ.2/2 (ปวส.2 ม.6 ทวิ ฝึกงาน)",
+      "level": "HIGH_VOC_CERT",
+      "student_count": 20,
+      "pvs_18_weeks": true,
+      "is_internship": true
     }
   ],
   "courses": {
@@ -422,6 +504,391 @@
       "required_room_type": "LAB_ELECTRIC",
       "allow_merge": false,
       "base_id": "BASE_30105_2030"
+    },
+    "C_20000_1204": {
+      "id": "C_20000_1204",
+      "name": "ภาษาอังกฤษสถานประกอบการ",
+      "code": "20000-1204",
+      "course_type": "PRACTICE",
+      "periods_per_session": 2,
+      "sessions_per_week": 1,
+      "required_room_type": "CLASSROOM",
+      "allow_merge": false,
+      "base_id": null
+    },
+    "C_20000_1221": {
+      "id": "C_20000_1221",
+      "name": "ภาษาอังกฤษเตรียมความพร้อมเพื่อการทำงาน",
+      "code": "20000-1221",
+      "course_type": "PRACTICE",
+      "periods_per_session": 2,
+      "sessions_per_week": 1,
+      "required_room_type": "CLASSROOM",
+      "allow_merge": false,
+      "base_id": null
+    },
+    "C_20000_1501": {
+      "id": "C_20000_1501",
+      "name": "หน้าที่พลเมืองและศีลธรรม",
+      "code": "20000-1501",
+      "course_type": "THEORY",
+      "periods_per_session": 2,
+      "sessions_per_week": 1,
+      "required_room_type": "CLASSROOM",
+      "allow_merge": false,
+      "base_id": null
+    },
+    "C_20000_1601": {
+      "id": "C_20000_1601",
+      "name": "ทักษะการดำรงชีวิตเพื่อพัฒนาสุขภาวะ",
+      "code": "20000-1601",
+      "course_type": "THEORY",
+      "periods_per_session": 2,
+      "sessions_per_week": 1,
+      "required_room_type": "CLASSROOM",
+      "allow_merge": false,
+      "base_id": null
+    },
+    "C_20001_1002": {
+      "id": "C_20001_1002",
+      "name": "การพัฒนาอย่างยั่งยืน",
+      "code": "20001-1002",
+      "course_type": "PRACTICE",
+      "periods_per_session": 3,
+      "sessions_per_week": 1,
+      "required_room_type": "LAB_ELECTRIC",
+      "allow_merge": false,
+      "base_id": null
+    },
+    "C_20105_2005": {
+      "id": "C_20105_2005",
+      "name": "ไมโครคอนโทรลเลอร์",
+      "code": "20105-2005",
+      "course_type": "PRACTICE",
+      "periods_per_session": 5,
+      "sessions_per_week": 1,
+      "required_room_type": "LAB_ELECTRIC",
+      "allow_merge": false,
+      "base_id": null
+    },
+    "C_20105_2012": {
+      "id": "C_20105_2012",
+      "name": "ระบบเสียง",
+      "code": "20105-2012",
+      "course_type": "PRACTICE",
+      "periods_per_session": 5,
+      "sessions_per_week": 1,
+      "required_room_type": "LAB_ELECTRIC",
+      "allow_merge": false,
+      "base_id": null
+    },
+    "C_20105_2009": {
+      "id": "C_20105_2009",
+      "name": "อิเล็กทรอนิกส์อุตสาหกรรม",
+      "code": "20105-2009",
+      "course_type": "PRACTICE",
+      "periods_per_session": 4,
+      "sessions_per_week": 1,
+      "required_room_type": "LAB_ELECTRIC",
+      "allow_merge": false,
+      "base_id": null
+    },
+    "C_20105_2010": {
+      "id": "C_20105_2010",
+      "name": "หุ่นยนต์เบื้องต้น",
+      "code": "20105-2010",
+      "course_type": "PRACTICE",
+      "periods_per_session": 4,
+      "sessions_per_week": 1,
+      "required_room_type": "LAB_ELECTRIC",
+      "allow_merge": false,
+      "base_id": null
+    },
+    "C_20105_2021": {
+      "id": "C_20105_2021",
+      "name": "อินเตอร์เฟซเบื้องต้น",
+      "code": "20105-2021",
+      "course_type": "PRACTICE",
+      "periods_per_session": 4,
+      "sessions_per_week": 1,
+      "required_room_type": "LAB_ELECTRIC",
+      "allow_merge": false,
+      "base_id": null
+    },
+    "C_20105_2029": {
+      "id": "C_20105_2029",
+      "name": "การใช้งานแอปพลิเคชันปัญญาประดิษฐ์",
+      "code": "20105-2029",
+      "course_type": "PRACTICE",
+      "periods_per_session": 4,
+      "sessions_per_week": 1,
+      "required_room_type": "LAB_ELECTRIC",
+      "allow_merge": false,
+      "base_id": null
+    },
+    "C_20000_2004": {
+      "id": "C_20000_2004",
+      "name": "กิจกรรมองค์การวิชาชีพ 1",
+      "code": "20000-2004",
+      "course_type": "PRACTICE",
+      "periods_per_session": 2,
+      "sessions_per_week": 1,
+      "required_room_type": "LAB_ELECTRIC",
+      "allow_merge": false,
+      "base_id": null
+    },
+    "C_20000_1222": {
+      "id": "C_20000_1222",
+      "name": "ภาษาจีนเพื่อการสื่อสารในชีวิตประจําวัน",
+      "code": "20000-1222",
+      "course_type": "PRACTICE",
+      "periods_per_session": 2,
+      "sessions_per_week": 1,
+      "required_room_type": "CLASSROOM",
+      "allow_merge": false,
+      "base_id": null
+    },
+    "C_20000_1202": {
+      "id": "C_20000_1202",
+      "name": "ภาษาอังกฤษโครงงานบูรณาการวิชาชีพ",
+      "code": "20000-1202",
+      "course_type": "PRACTICE",
+      "periods_per_session": 2,
+      "sessions_per_week": 1,
+      "required_room_type": "CLASSROOM",
+      "allow_merge": false,
+      "base_id": null
+    },
+    "C_20100_1007": {
+      "id": "C_20100_1007",
+      "name": "งานนิวเมติกส์และไฮดรอลิกส์เบื้องต้น",
+      "code": "20100-1007",
+      "course_type": "PRACTICE",
+      "periods_per_session": 4,
+      "sessions_per_week": 1,
+      "required_room_type": "LAB_ENGINE",
+      "allow_merge": false,
+      "base_id": null
+    },
+    "C_20105_2006": {
+      "id": "C_20105_2006",
+      "name": "โปรแกรมเมเบิลลอจิกคอนโทรล",
+      "code": "20105-2006",
+      "course_type": "PRACTICE",
+      "periods_per_session": 5,
+      "sessions_per_week": 1,
+      "required_room_type": "LAB_ELECTRIC",
+      "allow_merge": false,
+      "base_id": null
+    },
+    "C_20105_2016": {
+      "id": "C_20105_2016",
+      "name": "โทรทัศน์ระบบดิจิทัล",
+      "code": "20105-2016",
+      "course_type": "PRACTICE",
+      "periods_per_session": 5,
+      "sessions_per_week": 1,
+      "required_room_type": "LAB_ELECTRIC",
+      "allow_merge": false,
+      "base_id": null
+    },
+    "C_20105_2032_p1": {
+      "id": "C_20105_2032_p1",
+      "name": "โครงงานด้านอิเล็กทรอนิกส์ (ตอนที่ 1/3)",
+      "code": "20105-2032",
+      "course_type": "PRACTICE",
+      "periods_per_session": 4,
+      "sessions_per_week": 1,
+      "required_room_type": "LAB_ELECTRIC",
+      "allow_merge": false,
+      "base_id": null
+    },
+    "C_20105_2032_p2": {
+      "id": "C_20105_2032_p2",
+      "name": "โครงงานด้านอิเล็กทรอนิกส์ (ตอนที่ 2/3)",
+      "code": "20105-2032",
+      "course_type": "PRACTICE",
+      "periods_per_session": 4,
+      "sessions_per_week": 1,
+      "required_room_type": "LAB_ELECTRIC",
+      "allow_merge": false,
+      "base_id": null
+    },
+    "C_20105_2032_p3": {
+      "id": "C_20105_2032_p3",
+      "name": "โครงงานด้านอิเล็กทรอนิกส์ (ตอนที่ 3/3)",
+      "code": "20105-2032",
+      "course_type": "PRACTICE",
+      "periods_per_session": 4,
+      "sessions_per_week": 1,
+      "required_room_type": "LAB_ELECTRIC",
+      "allow_merge": false,
+      "base_id": null
+    },
+    "C_20105_2017": {
+      "id": "C_20105_2017",
+      "name": "เครื่องส่งวิทยุ",
+      "code": "20105-2017",
+      "course_type": "ROTATION_BASE",
+      "periods_per_session": 4,
+      "sessions_per_week": 1,
+      "required_room_type": "LAB_ELECTRIC",
+      "allow_merge": false,
+      "base_id": "BASE_20105_2017"
+    },
+    "C_21909_2018": {
+      "id": "C_21909_2018",
+      "name": "เทคโนโลยีอากาศยานไร้คนขับ",
+      "code": "21909-2018",
+      "course_type": "ROTATION_BASE",
+      "periods_per_session": 4,
+      "sessions_per_week": 1,
+      "required_room_type": "LAB_ELECTRIC",
+      "allow_merge": false,
+      "base_id": "BASE_21909_2018"
+    },
+    "C_20105_2027": {
+      "id": "C_20105_2027",
+      "name": "ระบบโทรศัพท์เคลื่อนที่",
+      "code": "20105-2027",
+      "course_type": "ROTATION_BASE",
+      "periods_per_session": 4,
+      "sessions_per_week": 1,
+      "required_room_type": "LAB_ELECTRIC",
+      "allow_merge": false,
+      "base_id": "BASE_20105_2027"
+    },
+    "C_20000_2005": {
+      "id": "C_20000_2005",
+      "name": "กิจกรรมองค์การวิชาชีพ 2",
+      "code": "20000-2005",
+      "course_type": "PRACTICE",
+      "periods_per_session": 2,
+      "sessions_per_week": 1,
+      "required_room_type": "LAB_ELECTRIC",
+      "allow_merge": false,
+      "base_id": null
+    },
+    "C_20001_1003": {
+      "id": "C_20001_1003",
+      "name": "ธุรกิจเบื้องต้น",
+      "code": "20001-1003",
+      "course_type": "PRACTICE",
+      "periods_per_session": 3,
+      "sessions_per_week": 1,
+      "required_room_type": "CLASSROOM",
+      "allow_merge": false,
+      "base_id": null
+    },
+    "C_20105_2020": {
+      "id": "C_20105_2020",
+      "name": "งานบริการอิเล็กทรอนิกส์",
+      "code": "20105-2020",
+      "course_type": "PRACTICE",
+      "periods_per_session": 4,
+      "sessions_per_week": 1,
+      "required_room_type": "LAB_ELECTRIC",
+      "allow_merge": false,
+      "base_id": null
+    },
+    "C_20000_2007": {
+      "id": "C_20000_2007",
+      "name": "กิจกรรมในสถานประกอบการ1",
+      "code": "20000-2007",
+      "course_type": "PRACTICE",
+      "periods_per_session": 2,
+      "sessions_per_week": 1,
+      "required_room_type": "LAB_ELECTRIC",
+      "allow_merge": false,
+      "base_id": null
+    },
+    "C_30000_1501": {
+      "id": "C_30000_1501",
+      "name": "สังคมไทยในยุคดิจิทัล",
+      "code": "30000-1501",
+      "course_type": "PRACTICE",
+      "periods_per_session": 3,
+      "sessions_per_week": 1,
+      "required_room_type": "CLASSROOM",
+      "allow_merge": false,
+      "base_id": null
+    },
+    "C_30001_1001": {
+      "id": "C_30001_1001",
+      "name": "การเป็นผู้ประกอบการ",
+      "code": "30001-1001",
+      "course_type": "PRACTICE",
+      "periods_per_session": 4,
+      "sessions_per_week": 1,
+      "required_room_type": "CLASSROOM",
+      "allow_merge": false,
+      "base_id": null
+    },
+    "C_30105_2019": {
+      "id": "C_30105_2019",
+      "name": "อิเล็กทรอนิกส์กำลัง",
+      "code": "30105-2019",
+      "course_type": "ROTATION_BASE",
+      "periods_per_session": 5,
+      "sessions_per_week": 1,
+      "required_room_type": "LAB_ELECTRIC",
+      "allow_merge": false,
+      "base_id": "BASE_30105_2019"
+    },
+    "C_30105_2031": {
+      "id": "C_30105_2031",
+      "name": "เทคโนโลยีพลังงานทดแทนอัจฉริยะ",
+      "code": "30105-2031",
+      "course_type": "ROTATION_BASE",
+      "periods_per_session": 5,
+      "sessions_per_week": 1,
+      "required_room_type": "LAB_ELECTRIC",
+      "allow_merge": false,
+      "base_id": "BASE_30105_2031"
+    },
+    "C_30105_2034_p1": {
+      "id": "C_30105_2034_p1",
+      "name": "โครงงานด้านเทคโนโลยีอิเล็กทรอนิกส์ 2 (ตอนที่ 1/2)",
+      "code": "30105-2034",
+      "course_type": "ROTATION_BASE",
+      "periods_per_session": 3,
+      "sessions_per_week": 1,
+      "required_room_type": "LAB_ELECTRIC",
+      "allow_merge": false,
+      "base_id": null
+    },
+    "C_30105_2034_p2": {
+      "id": "C_30105_2034_p2",
+      "name": "โครงงานด้านเทคโนโลยีอิเล็กทรอนิกส์ 2 (ตอนที่ 2/2)",
+      "code": "30105-2034",
+      "course_type": "ROTATION_BASE",
+      "periods_per_session": 3,
+      "sessions_per_week": 1,
+      "required_room_type": "LAB_ELECTRIC",
+      "allow_merge": false,
+      "base_id": null
+    },
+    "C_30105_2028": {
+      "id": "C_30105_2028",
+      "name": "เทคโนโลยีมัลติมีเดีย",
+      "code": "30105-2028",
+      "course_type": "ROTATION_BASE",
+      "periods_per_session": 5,
+      "sessions_per_week": 1,
+      "required_room_type": "LAB_ELECTRIC",
+      "allow_merge": false,
+      "base_id": "BASE_30105_2028"
+    },
+    "C_30000_2006": {
+      "id": "C_30000_2006",
+      "name": "กิจกรรมในสถานประกอบการ 2",
+      "code": "30000-2006",
+      "course_type": "PRACTICE",
+      "periods_per_session": 2,
+      "sessions_per_week": 1,
+      "required_room_type": "LAB_ELECTRIC",
+      "allow_merge": false,
+      "base_id": null
     }
   },
   "assignments": [
@@ -739,6 +1206,436 @@
       "id": "L_32_30000_2002",
       "course_id": "C_30000_2002",
       "primary_group_id": "G_PVS_M6_1",
+      "teacher_id": "T_UNASSIGNED",
+      "secondary_teacher_id": null,
+      "secondary_group_id": null,
+      "is_rotation": false,
+      "teaching_mode": "SINGLE"
+    },
+    {
+      "id": "L_33_20000_1204_G_CHO_2_1",
+      "course_id": "C_20000_1204",
+      "primary_group_id": "G_CHO_2_1",
+      "teacher_id": "T_UNASSIGNED",
+      "secondary_teacher_id": null,
+      "secondary_group_id": null,
+      "is_rotation": false,
+      "teaching_mode": "SINGLE"
+    },
+    {
+      "id": "L_34_20000_1221_G_CHO_2_1",
+      "course_id": "C_20000_1221",
+      "primary_group_id": "G_CHO_2_1",
+      "teacher_id": "T_UNASSIGNED",
+      "secondary_teacher_id": null,
+      "secondary_group_id": null,
+      "is_rotation": false,
+      "teaching_mode": "SINGLE"
+    },
+    {
+      "id": "L_35_20000_1501_G_CHO_2_1",
+      "course_id": "C_20000_1501",
+      "primary_group_id": "G_CHO_2_1",
+      "teacher_id": "T_UNASSIGNED",
+      "secondary_teacher_id": null,
+      "secondary_group_id": null,
+      "is_rotation": false,
+      "teaching_mode": "SINGLE"
+    },
+    {
+      "id": "L_36_20000_1601_G_CHO_2_1",
+      "course_id": "C_20000_1601",
+      "primary_group_id": "G_CHO_2_1",
+      "teacher_id": "T_UNASSIGNED",
+      "secondary_teacher_id": null,
+      "secondary_group_id": null,
+      "is_rotation": false,
+      "teaching_mode": "SINGLE"
+    },
+    {
+      "id": "L_37_20001_1002_G_CHO_2_1",
+      "course_id": "C_20001_1002",
+      "primary_group_id": "G_CHO_2_1",
+      "teacher_id": "T_UNASSIGNED",
+      "secondary_teacher_id": null,
+      "secondary_group_id": null,
+      "is_rotation": false,
+      "teaching_mode": "SINGLE"
+    },
+    {
+      "id": "L_38_20105_2005_G_CHO_2_1",
+      "course_id": "C_20105_2005",
+      "primary_group_id": "G_CHO_2_1",
+      "teacher_id": "T_UNASSIGNED",
+      "secondary_teacher_id": null,
+      "secondary_group_id": null,
+      "is_rotation": false,
+      "teaching_mode": "SINGLE"
+    },
+    {
+      "id": "L_39_20105_2012_G_CHO_2_1",
+      "course_id": "C_20105_2012",
+      "primary_group_id": "G_CHO_2_1",
+      "teacher_id": "T_UNASSIGNED",
+      "secondary_teacher_id": null,
+      "secondary_group_id": null,
+      "is_rotation": false,
+      "teaching_mode": "SINGLE"
+    },
+    {
+      "id": "L_40_20105_2009_G_CHO_2_1",
+      "course_id": "C_20105_2009",
+      "primary_group_id": "G_CHO_2_1",
+      "teacher_id": "T_UNASSIGNED",
+      "secondary_teacher_id": null,
+      "secondary_group_id": null,
+      "is_rotation": false,
+      "teaching_mode": "SINGLE"
+    },
+    {
+      "id": "L_41_20105_2010_G_CHO_2_1",
+      "course_id": "C_20105_2010",
+      "primary_group_id": "G_CHO_2_1",
+      "teacher_id": "T_UNASSIGNED",
+      "secondary_teacher_id": null,
+      "secondary_group_id": null,
+      "is_rotation": false,
+      "teaching_mode": "SINGLE"
+    },
+    {
+      "id": "L_42_20105_2021_G_CHO_2_1",
+      "course_id": "C_20105_2021",
+      "primary_group_id": "G_CHO_2_1",
+      "teacher_id": "T_UNASSIGNED",
+      "secondary_teacher_id": null,
+      "secondary_group_id": null,
+      "is_rotation": false,
+      "teaching_mode": "SINGLE"
+    },
+    {
+      "id": "L_43_20105_2029_G_CHO_2_1",
+      "course_id": "C_20105_2029",
+      "primary_group_id": "G_CHO_2_1",
+      "teacher_id": "T_UNASSIGNED",
+      "secondary_teacher_id": null,
+      "secondary_group_id": null,
+      "is_rotation": false,
+      "teaching_mode": "SINGLE"
+    },
+    {
+      "id": "L_44_20000_2004_G_CHO_2_1",
+      "course_id": "C_20000_2004",
+      "primary_group_id": "G_CHO_2_1",
+      "teacher_id": "T_UNASSIGNED",
+      "secondary_teacher_id": null,
+      "secondary_group_id": null,
+      "is_rotation": false,
+      "teaching_mode": "SINGLE"
+    },
+    {
+      "id": "L_45_20000_1222_G_CHO_3_1",
+      "course_id": "C_20000_1222",
+      "primary_group_id": "G_CHO_3_1",
+      "teacher_id": "T_UNASSIGNED",
+      "secondary_teacher_id": null,
+      "secondary_group_id": null,
+      "is_rotation": false,
+      "teaching_mode": "SINGLE"
+    },
+    {
+      "id": "L_46_20000_1202_G_CHO_3_1",
+      "course_id": "C_20000_1202",
+      "primary_group_id": "G_CHO_3_1",
+      "teacher_id": "T_UNASSIGNED",
+      "secondary_teacher_id": null,
+      "secondary_group_id": null,
+      "is_rotation": false,
+      "teaching_mode": "SINGLE"
+    },
+    {
+      "id": "L_47_20100_1007_G_CHO_3_1",
+      "course_id": "C_20100_1007",
+      "primary_group_id": "G_CHO_3_1",
+      "teacher_id": "T_UNASSIGNED",
+      "secondary_teacher_id": null,
+      "secondary_group_id": null,
+      "is_rotation": false,
+      "teaching_mode": "SINGLE"
+    },
+    {
+      "id": "L_48_20105_2006_G_CHO_3_1",
+      "course_id": "C_20105_2006",
+      "primary_group_id": "G_CHO_3_1",
+      "teacher_id": "T_UNASSIGNED",
+      "secondary_teacher_id": null,
+      "secondary_group_id": null,
+      "is_rotation": false,
+      "teaching_mode": "SINGLE"
+    },
+    {
+      "id": "L_49_20105_2016_G_CHO_3_1",
+      "course_id": "C_20105_2016",
+      "primary_group_id": "G_CHO_3_1",
+      "teacher_id": "T_UNASSIGNED",
+      "secondary_teacher_id": null,
+      "secondary_group_id": null,
+      "is_rotation": false,
+      "teaching_mode": "SINGLE"
+    },
+    {
+      "id": "L_50_20105_2032_G_CHO_3_1_p1",
+      "course_id": "C_20105_2032_p1",
+      "primary_group_id": "G_CHO_3_1",
+      "teacher_id": "T_UNASSIGNED",
+      "secondary_teacher_id": null,
+      "secondary_group_id": null,
+      "is_rotation": false,
+      "teaching_mode": "SINGLE"
+    },
+    {
+      "id": "L_51_20105_2032_G_CHO_3_1_p2",
+      "course_id": "C_20105_2032_p2",
+      "primary_group_id": "G_CHO_3_1",
+      "teacher_id": "T_UNASSIGNED",
+      "secondary_teacher_id": null,
+      "secondary_group_id": null,
+      "is_rotation": false,
+      "teaching_mode": "SINGLE"
+    },
+    {
+      "id": "L_52_20105_2032_G_CHO_3_1_p3",
+      "course_id": "C_20105_2032_p3",
+      "primary_group_id": "G_CHO_3_1",
+      "teacher_id": "T_UNASSIGNED",
+      "secondary_teacher_id": null,
+      "secondary_group_id": null,
+      "is_rotation": false,
+      "teaching_mode": "SINGLE"
+    },
+    {
+      "id": "L_53_20105_2017_G_CHO_3_1",
+      "course_id": "C_20105_2017",
+      "primary_group_id": "G_CHO_3_1",
+      "teacher_id": "T_UNASSIGNED",
+      "secondary_teacher_id": null,
+      "secondary_group_id": null,
+      "is_rotation": true,
+      "teaching_mode": "SINGLE"
+    },
+    {
+      "id": "L_54_21909_2018_G_CHO_3_1",
+      "course_id": "C_21909_2018",
+      "primary_group_id": "G_CHO_3_1",
+      "teacher_id": "T_UNASSIGNED",
+      "secondary_teacher_id": null,
+      "secondary_group_id": null,
+      "is_rotation": true,
+      "teaching_mode": "SINGLE"
+    },
+    {
+      "id": "L_55_20105_2027_G_CHO_3_1",
+      "course_id": "C_20105_2027",
+      "primary_group_id": "G_CHO_3_1",
+      "teacher_id": "T_UNASSIGNED",
+      "secondary_teacher_id": null,
+      "secondary_group_id": null,
+      "is_rotation": true,
+      "teaching_mode": "SINGLE"
+    },
+    {
+      "id": "L_56_20000_2005_G_CHO_3_1",
+      "course_id": "C_20000_2005",
+      "primary_group_id": "G_CHO_3_1",
+      "teacher_id": "T_UNASSIGNED",
+      "secondary_teacher_id": null,
+      "secondary_group_id": null,
+      "is_rotation": false,
+      "teaching_mode": "SINGLE"
+    },
+    {
+      "id": "L_57_20001_1003_G_CHO_3_2",
+      "course_id": "C_20001_1003",
+      "primary_group_id": "G_CHO_3_2",
+      "teacher_id": "T_UNASSIGNED",
+      "secondary_teacher_id": null,
+      "secondary_group_id": null,
+      "is_rotation": false,
+      "teaching_mode": "SINGLE"
+    },
+    {
+      "id": "L_58_20105_2020_G_CHO_3_2",
+      "course_id": "C_20105_2020",
+      "primary_group_id": "G_CHO_3_2",
+      "teacher_id": "T_UNASSIGNED",
+      "secondary_teacher_id": null,
+      "secondary_group_id": null,
+      "is_rotation": false,
+      "teaching_mode": "SINGLE"
+    },
+    {
+      "id": "L_59_20000_2007_G_CHO_3_2",
+      "course_id": "C_20000_2007",
+      "primary_group_id": "G_CHO_3_2",
+      "teacher_id": "T_UNASSIGNED",
+      "secondary_teacher_id": null,
+      "secondary_group_id": null,
+      "is_rotation": false,
+      "teaching_mode": "SINGLE"
+    },
+    {
+      "id": "L_60_30000_1501_G_PVS_2_1",
+      "course_id": "C_30000_1501",
+      "primary_group_id": "G_PVS_2_1",
+      "teacher_id": "T_UNASSIGNED",
+      "secondary_teacher_id": null,
+      "secondary_group_id": null,
+      "is_rotation": false,
+      "teaching_mode": "SINGLE"
+    },
+    {
+      "id": "L_61_30001_1001_G_PVS_2_1",
+      "course_id": "C_30001_1001",
+      "primary_group_id": "G_PVS_2_1",
+      "teacher_id": "T_UNASSIGNED",
+      "secondary_teacher_id": null,
+      "secondary_group_id": null,
+      "is_rotation": false,
+      "teaching_mode": "SINGLE"
+    },
+    {
+      "id": "L_62_30105_2019_G_PVS_2_1",
+      "course_id": "C_30105_2019",
+      "primary_group_id": "G_PVS_2_1",
+      "teacher_id": "T_UNASSIGNED",
+      "secondary_teacher_id": null,
+      "secondary_group_id": null,
+      "is_rotation": true,
+      "teaching_mode": "SINGLE"
+    },
+    {
+      "id": "L_63_30105_2031_G_PVS_2_1",
+      "course_id": "C_30105_2031",
+      "primary_group_id": "G_PVS_2_1",
+      "teacher_id": "T_UNASSIGNED",
+      "secondary_teacher_id": null,
+      "secondary_group_id": null,
+      "is_rotation": true,
+      "teaching_mode": "SINGLE"
+    },
+    {
+      "id": "L_64_30105_2034_G_PVS_2_1_p1",
+      "course_id": "C_30105_2034_p1",
+      "primary_group_id": "G_PVS_2_1",
+      "teacher_id": "T_UNASSIGNED",
+      "secondary_teacher_id": null,
+      "secondary_group_id": null,
+      "is_rotation": false,
+      "teaching_mode": "SINGLE"
+    },
+    {
+      "id": "L_65_30105_2034_G_PVS_2_1_p2",
+      "course_id": "C_30105_2034_p2",
+      "primary_group_id": "G_PVS_2_1",
+      "teacher_id": "T_UNASSIGNED",
+      "secondary_teacher_id": null,
+      "secondary_group_id": null,
+      "is_rotation": false,
+      "teaching_mode": "SINGLE"
+    },
+    {
+      "id": "L_66_30105_2028_G_PVS_2_1",
+      "course_id": "C_30105_2028",
+      "primary_group_id": "G_PVS_2_1",
+      "teacher_id": "T_UNASSIGNED",
+      "secondary_teacher_id": null,
+      "secondary_group_id": null,
+      "is_rotation": true,
+      "teaching_mode": "SINGLE"
+    },
+    {
+      "id": "L_67_30000_2006_G_PVS_2_1",
+      "course_id": "C_30000_2006",
+      "primary_group_id": "G_PVS_2_1",
+      "teacher_id": "T_UNASSIGNED",
+      "secondary_teacher_id": null,
+      "secondary_group_id": null,
+      "is_rotation": false,
+      "teaching_mode": "SINGLE"
+    },
+    {
+      "id": "L_68_30000_1501_G_PVS_M6_2_1",
+      "course_id": "C_30000_1501",
+      "primary_group_id": "G_PVS_M6_2_1",
+      "teacher_id": "T_UNASSIGNED",
+      "secondary_teacher_id": null,
+      "secondary_group_id": null,
+      "is_rotation": false,
+      "teaching_mode": "SINGLE"
+    },
+    {
+      "id": "L_69_30001_1001_G_PVS_M6_2_1",
+      "course_id": "C_30001_1001",
+      "primary_group_id": "G_PVS_M6_2_1",
+      "teacher_id": "T_UNASSIGNED",
+      "secondary_teacher_id": null,
+      "secondary_group_id": null,
+      "is_rotation": false,
+      "teaching_mode": "SINGLE"
+    },
+    {
+      "id": "L_70_30105_2031_G_PVS_M6_2_1",
+      "course_id": "C_30105_2031",
+      "primary_group_id": "G_PVS_M6_2_1",
+      "teacher_id": "T_UNASSIGNED",
+      "secondary_teacher_id": null,
+      "secondary_group_id": null,
+      "is_rotation": true,
+      "teaching_mode": "SINGLE"
+    },
+    {
+      "id": "L_71_30105_2019_G_PVS_M6_2_1",
+      "course_id": "C_30105_2019",
+      "primary_group_id": "G_PVS_M6_2_1",
+      "teacher_id": "T_UNASSIGNED",
+      "secondary_teacher_id": null,
+      "secondary_group_id": null,
+      "is_rotation": true,
+      "teaching_mode": "SINGLE"
+    },
+    {
+      "id": "L_72_30105_2034_G_PVS_M6_2_1_p1",
+      "course_id": "C_30105_2034_p1",
+      "primary_group_id": "G_PVS_M6_2_1",
+      "teacher_id": "T_UNASSIGNED",
+      "secondary_teacher_id": null,
+      "secondary_group_id": null,
+      "is_rotation": false,
+      "teaching_mode": "SINGLE"
+    },
+    {
+      "id": "L_73_30105_2034_G_PVS_M6_2_1_p2",
+      "course_id": "C_30105_2034_p2",
+      "primary_group_id": "G_PVS_M6_2_1",
+      "teacher_id": "T_UNASSIGNED",
+      "secondary_teacher_id": null,
+      "secondary_group_id": null,
+      "is_rotation": false,
+      "teaching_mode": "SINGLE"
+    },
+    {
+      "id": "L_74_30105_2028_G_PVS_M6_2_1",
+      "course_id": "C_30105_2028",
+      "primary_group_id": "G_PVS_M6_2_1",
+      "teacher_id": "T_UNASSIGNED",
+      "secondary_teacher_id": null,
+      "secondary_group_id": null,
+      "is_rotation": true,
+      "teaching_mode": "SINGLE"
+    },
+    {
+      "id": "L_75_30000_2006_G_PVS_M6_2_1",
+      "course_id": "C_30000_2006",
+      "primary_group_id": "G_PVS_M6_2_1",
       "teacher_id": "T_UNASSIGNED",
       "secondary_teacher_id": null,
       "secondary_group_id": null,

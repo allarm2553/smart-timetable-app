@@ -569,7 +569,7 @@ def solve_current():
         days=5,
         periods_per_day=12,
         num_blocks=6,
-        time_limit_seconds=25.0
+        time_limit_seconds=30.0
     )
 
 @app.get("/api/export/excel")

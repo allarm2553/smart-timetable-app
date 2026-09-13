@@ -181,7 +181,7 @@ class TimetableSolver:
 
     def _add_group_conflict_constraints(self):
         """กลุ่มเรียน 1 กลุ่ม เรียนได้ไม่เกิน 1 วิชาในแต่ละ (block, day, period)
-        และควบคุมคาบเรียนต่อวันไม่เกิน 7 คาบ (ไม่มากไป) เพื่อสุขภาพการเรียนรู้ของนักศึกษา
+        และควบคุมคาบเรียนต่อวันไม่เกิน 8 คาบ (ไม่มากไป) เพื่อสุขภาพการเรียนรู้ของนักศึกษา
         """
         for g_id, grp in self.groups.items():
             # ค้นหาวิชาที่กลุ่มนี้มีส่วนร่วม (ทั้งเดี่ยว และ เรียนรวม)
@@ -199,8 +199,14 @@ class TimetableSolver:
                         active_in_slot = []
                         for a_id in grp_assignments:
                             occ = self.occupies.get((a_id, d, p))
-                            if occ is not None:
-                                # lesson กำลังเรียนใน slot นี้ และ กำลัง active ใน block b
+                            if occ is None:
+                                continue
+                            a = self.assignments[a_id]
+                            p_grp = self.groups[a.primary_group_id]
+                            if not a.is_rotation:
+                                if b in p_grp.active_blocks:
+                                    active_in_slot.append(occ)
+                            else:
                                 is_slot_active = self.model.NewBoolVar(f"g_{g_id}_b{b}_d{d}_p{p}_{a_id}")
                                 self.model.AddBoolAnd([occ, self.block_active[a_id, b]]).OnlyEnforceIf(is_slot_active)
                                 self.model.AddBoolOr([occ.Not(), self.block_active[a_id, b].Not()]).OnlyEnforceIf(is_slot_active.Not())
@@ -241,7 +247,14 @@ class TimetableSolver:
                         active_teach_slots = []
                         for a_id in t_assignments:
                             occ = self.occupies.get((a_id, d, p))
-                            if occ is not None:
+                            if occ is None:
+                                continue
+                            a = self.assignments[a_id]
+                            p_grp = self.groups[a.primary_group_id]
+                            if not a.is_rotation:
+                                if b in p_grp.active_blocks:
+                                    active_teach_slots.append(occ)
+                            else:
                                 is_teach_active = self.model.NewBoolVar(f"t_{t_id}_b{b}_d{d}_p{p}_{a_id}")
                                 self.model.AddBoolAnd([occ, self.block_active[a_id, b]]).OnlyEnforceIf(is_teach_active)
                                 self.model.AddBoolOr([occ.Not(), self.block_active[a_id, b].Not()]).OnlyEnforceIf(is_teach_active.Not())
@@ -277,27 +290,54 @@ class TimetableSolver:
 
     def _add_room_conflict_constraints(self):
         """ห้องเรียน 1 ห้อง ใช้งานได้ไม่เกิน 1 วิชาในแต่ละ (block, day, period)"""
+        # 1. Precompute (assignment, room, d, p) active variable
+        assignment_room_slot = {}
+        for a_id, a in self.assignments.items():
+            candidate_rooms = [r_id for r_id in self.rooms if (a_id, r_id) in self.assigned_room]
+            is_single_room = (len(candidate_rooms) == 1)
+            for r_id in candidate_rooms:
+                r_var = self.assigned_room[a_id, r_id]
+                for d in range(self.days):
+                    for p in range(self.periods_per_day):
+                        occ = self.occupies.get((a_id, d, p))
+                        if occ is None:
+                            continue
+                        if is_single_room:
+                            assignment_room_slot[(a_id, r_id, d, p)] = occ
+                        else:
+                            var = self.model.NewBoolVar(f"ar_{a_id}_{r_id}_{d}_{p}")
+                            self.model.AddBoolAnd([occ, r_var]).OnlyEnforceIf(var)
+                            self.model.AddBoolOr([occ.Not(), r_var.Not()]).OnlyEnforceIf(var.Not())
+                            assignment_room_slot[(a_id, r_id, d, p)] = var
+
+        # 2. Add room capacity constraints per block, day, period
         for r_id in self.rooms:
+            cand_assignments = [
+                a_id for a_id in self.assignments
+                if (a_id, r_id) in self.assigned_room
+            ]
+            if len(cand_assignments) <= 1:
+                continue
+
             for b in range(self.num_blocks):
                 for d in range(self.days):
                     for p in range(self.periods_per_day):
                         active_room_slots = []
-                        for a_id in self.assignments:
-                            if (a_id, r_id) in self.assigned_room:
-                                occ = self.occupies.get((a_id, d, p))
-                                if occ is not None:
-                                    is_room_active = self.model.NewBoolVar(f"r_{r_id}_b{b}_d{d}_p{p}_{a_id}")
-                                    self.model.AddBoolAnd([
-                                        occ,
-                                        self.block_active[a_id, b],
-                                        self.assigned_room[a_id, r_id]
-                                    ]).OnlyEnforceIf(is_room_active)
-                                    self.model.AddBoolOr([
-                                        occ.Not(),
-                                        self.block_active[a_id, b].Not(),
-                                        self.assigned_room[a_id, r_id].Not()
-                                    ]).OnlyEnforceIf(is_room_active.Not())
-                                    active_room_slots.append(is_room_active)
+                        for a_id in cand_assignments:
+                            base_var = assignment_room_slot.get((a_id, r_id, d, p))
+                            if base_var is None:
+                                continue
+                            a = self.assignments[a_id]
+                            p_grp = self.groups[a.primary_group_id]
+                            if not a.is_rotation:
+                                if b in p_grp.active_blocks:
+                                    active_room_slots.append(base_var)
+                            else:
+                                is_rot_b = self.model.NewBoolVar(f"rrot_{a_id}_{r_id}_b{b}_{d}_{p}")
+                                self.model.AddBoolAnd([base_var, self.block_active[a_id, b]]).OnlyEnforceIf(is_rot_b)
+                                self.model.AddBoolOr([base_var.Not(), self.block_active[a_id, b].Not()]).OnlyEnforceIf(is_rot_b.Not())
+                                active_room_slots.append(is_rot_b)
+
                         if active_room_slots:
                             self.model.Add(sum(active_room_slots) <= 1)
 
@@ -342,7 +382,7 @@ class TimetableSolver:
         if penalty_terms:
             self.model.Minimize(sum(penalty_terms))
 
-    def solve(self, time_limit_seconds: float = 20.0):
+    def solve(self, time_limit_seconds: float = 30.0):
         self.solver.parameters.max_time_in_seconds = time_limit_seconds
         self.solver.parameters.num_search_workers = 2
         status = self.solver.Solve(self.model)

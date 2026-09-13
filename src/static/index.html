@@ -269,9 +269,9 @@
           <input type="file" id="projectFileInput" accept=".json" class="hidden" onchange="importProjectFile(event)">
 
           <!-- Reset button -->
-          <button onclick="resetToDefault()" title="ล้างข้อมูลที่จัดค้างไว้ในเครื่อง แล้วคำนวณใหม่จากข้อมูลตั้งต้น" class="flex items-center space-x-1 px-2.5 py-1 rounded-md bg-slate-100 hover:bg-rose-50 hover:text-rose-700 hover:border-rose-300 border border-slate-300 text-slate-600 text-[11px] font-semibold transition active:scale-95 font-display">
-            <i data-lucide="rotate-ccw" class="w-3.5 h-3.5 text-slate-500"></i>
-            <span>รีเซ็ตค่าเริ่มต้น</span>
+          <button onclick="resetToDefault()" title="ล้างข้อมูลทั้งหมดในระบบออกเกลี้ยง 100% เพื่อเริ่มใหม่" class="flex items-center space-x-1 px-2.5 py-1 rounded-md bg-slate-100 hover:bg-rose-50 hover:text-rose-700 hover:border-rose-300 border border-slate-300 text-slate-600 text-[11px] font-semibold transition active:scale-95 font-display">
+            <i data-lucide="trash-2" class="w-3.5 h-3.5 text-slate-500"></i>
+            <span>รีเซ็ตค่าเริ่มต้น (เคลียร์ค่าว่าง)</span>
           </button>
           <span class="text-slate-300 hidden sm:inline">|</span>
           <span>เวลา: <strong id="statTime" class="text-slate-700">-</strong></span>
@@ -649,13 +649,19 @@
     }
 
     async function resetToDefault() {
-      if (!confirm("⚠️ ยืนยันการรีเซ็ตค่าเริ่มต้น?\n\nระบบจะล้างข้อมูลตารางและการปรับย้ายที่จำไว้ในเครื่อง แล้วคำนวณตารางใหม่จากชุดข้อมูลตั้งต้น")) {
+      if (!confirm("⚠️ ยืนยันการล้างข้อมูลทั้งหมดในระบบ (เคลียร์ค่าเริ่มต้นออกหมด)?\n\nระบบจะล้างข้อมูลครู ห้องเรียน กลุ่มผู้เรียน รายวิชา แผนการสอน และตารางเรียนทั้งหมดออก 100% เพื่อให้เป็นระบบว่างเปล่าพร้อมสำหรับการนำเข้าข้อมูลใหม่")) {
         return;
       }
-      clearSavedState();
-      updateStorageStatusBadge(null);
-      showToast("↺ ล้างข้อมูลในเครื่องแล้ว กำลังคำนวณตารางเริ่มต้นใหม่...", "info", 2500);
-      await runSolver();
+      try {
+        await fetch('/api/data/clear', { method: 'POST' });
+        clearSavedState();
+        updateStorageStatusBadge(null);
+        showToast("🗑️ ล้างข้อมูลทั้งหมดในระบบเรียบร้อยแล้ว (ระบบว่างเปล่า)", "success", 3000);
+        await loadDataManagerData();
+        await saveAndSolveCurrent();
+      } catch (err) {
+        showToast("เกิดข้อผิดพลาด: " + err.message, "error");
+      }
     }
 
     // --- Project Export / Import (.json) for Collaboration ---
@@ -868,6 +874,16 @@
         items = benchmarkData.teachers.map(t => ({ id: t.id, name: t.name }));
       } else {
         items = benchmarkData.rooms.map(r => ({ id: r.id, name: `${r.name} (จุ ${r.capacity} คน)` }));
+      }
+
+      if (items.length === 0) {
+        const opt = document.createElement('option');
+        opt.value = '';
+        opt.textContent = '-- ยังไม่มีข้อมูล (ระบบว่างเปล่า) --';
+        select.appendChild(opt);
+        currentEntityId = '';
+        select.value = '';
+        return;
       }
 
       items.forEach((it, idx) => {
@@ -2794,11 +2810,27 @@
     }
 
     async function resetAllData() {
-      if (!confirm("⚠️ ต้องการคืนค่าข้อมูลครู ห้อง กลุ่มเรียน และวิชา กลับสู่ชุดข้อมูลเริ่มต้นมาตรฐานหรือไม่?")) return;
+      if (!confirm("⚠️ ยืนยันการเคลียร์ค่าเริ่มต้นออกทั้งหมด?\n\nระบบจะลบข้อมูลครู ห้อง กลุ่มเรียน รายวิชา และแผนการสอนทั้งหมดออก 100% เพื่อให้เป็นระบบว่างเปล่า")) return;
       try {
-        const res = await fetch('/api/data/reset', { method: 'POST' });
+        const res = await fetch('/api/data/clear', { method: 'POST' });
         if (res.ok) {
-          alert("คืนค่าข้อมูลเริ่มต้นเรียบร้อยแล้ว");
+          clearSavedState();
+          showToast("🗑️ ล้างข้อมูลทุกอย่างออกหมดเกลี้ยงเรียบร้อยแล้ว", "success", 3000);
+          await refreshDataManagerData();
+          await saveAndSolveCurrent();
+        }
+      } catch (err) {
+        alert("เกิดข้อผิดพลาด: " + err.message);
+      }
+    }
+
+    async function loadBenchmarkDemoData() {
+      if (!confirm("ℹ️ ต้องการโหลดชุดข้อมูลตัวอย่างมาตรฐาน (Demo Benchmark) กลับมาหรือไม่?")) return;
+      try {
+        const res = await fetch('/api/data/benchmark', { method: 'POST' });
+        if (res.ok) {
+          clearSavedState();
+          showToast("📥 โหลดชุดข้อมูลตัวอย่างเรียบร้อยแล้ว", "success", 3000);
           await refreshDataManagerData();
           await saveAndSolveCurrent();
         }
@@ -3619,10 +3651,16 @@
 
       <!-- Modal Footer -->
       <div class="bg-slate-100 px-6 py-3.5 border-t border-slate-300 flex items-center justify-between">
-        <button onclick="resetAllData()" class="px-3 py-1.5 text-slate-600 hover:text-red-700 font-bold text-xs font-display transition flex items-center space-x-1">
-          <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i>
-          <span>คืนค่าเริ่มต้นมาตรฐาน</span>
-        </button>
+        <div class="flex items-center space-x-2">
+          <button onclick="resetAllData()" class="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 border border-red-300 rounded font-bold text-xs font-display transition flex items-center space-x-1" title="ล้างข้อมูลทุกอย่างออกหมด 100%">
+            <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+            <span>ล้างข้อมูลทั้งหมด (เคลียร์ค่าว่าง)</span>
+          </button>
+          <button onclick="loadBenchmarkDemoData()" class="px-2.5 py-1.5 bg-white hover:bg-slate-50 text-slate-600 hover:text-indigo-700 border border-slate-300 rounded font-bold text-xs font-display transition flex items-center space-x-1" title="โหลดข้อมูลตัวอย่างสำหรับทดสอบ">
+            <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i>
+            <span>โหลดชุดข้อมูลตัวอย่าง (Demo)</span>
+          </button>
+        </div>
 
         <div class="flex items-center space-x-2.5">
           <button onclick="closeDataManagerModal()" class="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded font-display transition">

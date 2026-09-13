@@ -78,7 +78,17 @@ class TimetableDataManager:
                 "assignments": self.assignments
             }, f, ensure_ascii=False, indent=2)
 
-    def reset_to_default(self):
+    def clear_all(self):
+        """ล้างข้อมูลทั้งหมดในระบบออกเกลี้ยง 100% (ครู, ห้อง, กลุ่ม, วิชา, แผนการสอน)"""
+        self.teachers = []
+        self.rooms = []
+        self.groups = []
+        self.courses = {}
+        self.assignments = []
+        self._save()
+
+    def reset_to_benchmark(self):
+        """คืนค่าชุดข้อมูลตัวอย่างมาตรฐาน (Benchmark Dataset)"""
         dataset = get_benchmark_dataset()
         self.teachers = [
             {
@@ -136,6 +146,9 @@ class TimetableDataManager:
             } for a in dataset["assignments"]
         ]
         self._save()
+
+    def reset_to_default(self):
+        self.reset_to_benchmark()
 
     def get_all_data(self) -> Dict[str, Any]:
         return {

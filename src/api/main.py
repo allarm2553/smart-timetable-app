@@ -144,6 +144,16 @@ def _run_solver(
         )
 
     try:
+        if not assignments:
+            return SolveResponse(
+                status="FEASIBLE",
+                is_success=True,
+                execution_time_seconds=0.0,
+                total_lessons_scheduled=0,
+                schedule=[],
+                message="ไม่มีรายวิชาในระบบ (ระบบว่างเปล่า)"
+            )
+
         solver = TimetableSolver(
             teachers=teachers,
             rooms=rooms,
@@ -437,10 +447,30 @@ def api_get_all_data():
     return data_manager.get_all_data()
 
 @app.post("/api/data/reset")
-def api_reset_data():
-    """คืนค่าข้อมูลกลับสู่ค่าเริ่มต้นมาตรฐาน"""
-    data_manager.reset_to_default()
-    return {"message": "คืนค่าข้อมูลเริ่มต้นเรียบร้อย", "data": data_manager.get_all_data()}
+def api_reset_data(mode: str = "clear"):
+    """
+    รีเซ็ตข้อมูล:
+    - mode="clear" (ค่าเริ่มต้น): ล้างข้อมูลทุกอย่างออกหมดเกลี้ยง 100% ตามความต้องการของผู้ใช้
+    - mode="benchmark": คืนค่าชุดข้อมูลตัวอย่างมาตรฐาน
+    """
+    if mode == "benchmark":
+        data_manager.reset_to_benchmark()
+        return {"is_success": True, "message": "คืนค่าชุดข้อมูลตัวอย่างมาตรฐานเรียบร้อย", "data": data_manager.get_all_data()}
+    else:
+        data_manager.clear_all()
+        return {"is_success": True, "message": "ล้างข้อมูลทั้งหมดในระบบออกเรียบร้อยแล้ว (ระบบว่างเปล่า)", "data": data_manager.get_all_data()}
+
+@app.post("/api/data/clear")
+def api_clear_data():
+    """ล้างข้อมูลทุกอย่างออกหมดเกลี้ยง 100% (ครู, ห้อง, กลุ่ม, วิชา, แผนการสอน)"""
+    data_manager.clear_all()
+    return {"is_success": True, "message": "ล้างข้อมูลทั้งหมดในระบบออกเรียบร้อยแล้ว (ระบบว่างเปล่า)", "data": data_manager.get_all_data()}
+
+@app.post("/api/data/benchmark")
+def api_load_benchmark_data():
+    """โหลดชุดข้อมูลตัวอย่างมาตรฐาน (Benchmark Data)"""
+    data_manager.reset_to_benchmark()
+    return {"is_success": True, "message": "โหลดชุดข้อมูลตัวอย่างเรียบร้อย", "data": data_manager.get_all_data()}
 
 @app.post("/api/teachers")
 def api_add_teacher(teacher: Dict[str, Any]):

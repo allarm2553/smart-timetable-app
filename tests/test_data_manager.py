@@ -1,12 +1,17 @@
-import tests
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
 from fastapi.testclient import TestClient
 from src.api.main import app
+from src.api.data_manager import data_manager
 
 client = TestClient(app)
 
 def test_data_manager_crud():
     # บันทึกข้อมูลโปรเจ็คเดิมก่อนเริ่มทดสอบ เพื่อกู้คืนหลังทดสอบเสร็จ
     initial_project = client.get("/api/project/export").json()
+    data_manager.reset_to_benchmark()
 
     try:
         # 1. ทดสอบดึงข้อมูลทั้งหมด
@@ -62,13 +67,21 @@ def test_data_manager_crud():
         assert client.delete("/api/groups/G_TEST_CHO_2").status_code == 200
         print("✅ Passed: DELETE /api/teachers, rooms, groups deleted successfully")
 
-        # 7. ทดสอบรีเซ็ตข้อมูล
+        # 7. ทดสอบล้างข้อมูลทั้งหมด (Clear All)
+        res_clear = client.post("/api/data/clear")
+        assert res_clear.status_code == 200
+        assert len(res_clear.json()["data"]["teachers"]) == 0
+        assert len(res_clear.json()["data"]["rooms"]) == 0
+        print("✅ Passed: POST /api/data/clear cleared all data successfully")
+
+        # 8. ทดสอบรีเซ็ตข้อมูล
         res_reset = client.post("/api/data/reset")
         assert res_reset.status_code == 200
-        print("✅ Passed: POST /api/data/reset reset to default")
+        print("✅ Passed: POST /api/data/reset reset to empty")
     finally:
-        # กู้คืนข้อมูลเดิมกลับมา
-        client.post("/api/project/import", json=initial_project)
+        # ล้างข้อมูลให้สะอาดเป็นค่าว่างตามที่ผู้ใช้ต้องการ
+        data_manager.clear_all()
+
 
 if __name__ == "__main__":
     test_data_manager_crud()

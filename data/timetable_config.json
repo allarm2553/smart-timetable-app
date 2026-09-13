@@ -4,55 +4,73 @@
       "id": "T_PONG",
       "name": "พงษ์สถิต",
       "max_periods_per_day": 6,
-      "unavailable_slots": []
+      "unavailable_slots": [],
+      "is_head": false,
+      "max_periods_per_week": 34
     },
     {
       "id": "T_PO",
       "name": "อ.ป้อ",
       "max_periods_per_day": 6,
-      "unavailable_slots": []
+      "unavailable_slots": [],
+      "is_head": false,
+      "max_periods_per_week": 34
     },
     {
       "id": "T_JIRA",
       "name": "จิรวัฒน์",
       "max_periods_per_day": 6,
-      "unavailable_slots": []
+      "unavailable_slots": [],
+      "is_head": false,
+      "max_periods_per_week": 34
     },
     {
       "id": "T_ANU",
       "name": "อนุชา",
       "max_periods_per_day": 6,
-      "unavailable_slots": []
+      "unavailable_slots": [],
+      "is_head": false,
+      "max_periods_per_week": 34
     },
     {
       "id": "T_CHOO",
       "name": "ชูสกุล",
       "max_periods_per_day": 6,
-      "unavailable_slots": []
+      "unavailable_slots": [],
+      "is_head": false,
+      "max_periods_per_week": 34
     },
     {
       "id": "T_PAT",
       "name": "ภัสพร",
       "max_periods_per_day": 6,
-      "unavailable_slots": []
+      "unavailable_slots": [],
+      "is_head": false,
+      "max_periods_per_week": 34
     },
     {
       "id": "T_NOPA",
       "name": "นพนันท์",
       "max_periods_per_day": 6,
-      "unavailable_slots": []
+      "unavailable_slots": [],
+      "is_head": false,
+      "max_periods_per_week": 34
     },
     {
       "id": "T_THOD",
       "name": "เทอดศักดิ์",
       "max_periods_per_day": 6,
-      "unavailable_slots": []
+      "unavailable_slots": [],
+      "is_head": false,
+      "max_periods_per_week": 34
     },
     {
       "id": "T_THONG",
       "name": "ทองคำ",
       "max_periods_per_day": 6,
-      "unavailable_slots": []
+      "unavailable_slots": [],
+      "is_head": false,
+      "max_periods_per_week": 34
     }
   ],
   "rooms": [
@@ -92,31 +110,36 @@
       "id": "G_CHO_1_1",
       "name": "ชอ.1/1",
       "level": "VOC_CERT",
-      "student_count": 20
+      "student_count": 20,
+      "pvs_18_weeks": true
     },
     {
       "id": "G_CHO_1_2",
       "name": "ชอ.1/2",
       "level": "VOC_CERT",
-      "student_count": 20
+      "student_count": 20,
+      "pvs_18_weeks": true
     },
     {
       "id": "G_CHO_1_3",
       "name": "ชอ.1/3",
       "level": "VOC_CERT",
-      "student_count": 19
+      "student_count": 19,
+      "pvs_18_weeks": true
     },
     {
       "id": "G_CHO_3_3",
       "name": "ชอ.3/3",
       "level": "VOC_CERT",
-      "student_count": 20
+      "student_count": 20,
+      "pvs_18_weeks": true
     },
     {
       "id": "G_PVS_1",
       "name": "ชส.1/1 (ปวส.)",
       "level": "HIGH_VOC_CERT",
-      "student_count": 25
+      "student_count": 25,
+      "pvs_18_weeks": true
     }
   ],
   "courses": {

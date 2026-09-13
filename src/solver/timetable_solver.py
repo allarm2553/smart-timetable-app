@@ -136,16 +136,21 @@ class TimetableSolver:
         self._add_soft_preferences()
 
     def _add_group_conflict_constraints(self):
-        """กลุ่มเรียน 1 กลุ่ม เรียนได้ไม่เกิน 1 วิชาในแต่ละ (block, day, period)"""
+        """กลุ่มเรียน 1 กลุ่ม เรียนได้ไม่เกิน 1 วิชาในแต่ละ (block, day, period)
+        และควบคุมคาบเรียนต่อวันไม่เกิน 7 คาบ (ไม่มากไป) เพื่อสุขภาพการเรียนรู้ของนักศึกษา
+        """
         for g_id, grp in self.groups.items():
             # ค้นหาวิชาที่กลุ่มนี้มีส่วนร่วม (ทั้งเดี่ยว และ เรียนรวม)
             grp_assignments = [
                 a_id for a_id, a in self.assignments.items()
                 if a.primary_group_id == g_id or a.secondary_group_id == g_id
             ]
+            if not grp_assignments:
+                continue
 
             for b in grp.active_blocks:
                 for d in range(self.days):
+                    daily_group_slots = []
                     for p in range(self.periods_per_day):
                         active_in_slot = []
                         for a_id in grp_assignments:
@@ -158,19 +163,32 @@ class TimetableSolver:
                                 active_in_slot.append(is_slot_active)
                         if active_in_slot:
                             self.model.Add(sum(active_in_slot) <= 1)
+                            daily_group_slots.extend(active_in_slot)
+
+                    # จำกัดคาบเรียนต่อวันของนักศึกษาไม่เกิน 7 คาบ (ไม่มากไป และเว้นพักเที่ยง)
+                    if daily_group_slots:
+                        self.model.Add(sum(daily_group_slots) <= 7)
 
     def _add_teacher_conflict_constraints(self):
         """ครู 1 คน สอนได้ไม่เกิน 1 คาบในแต่ละ (block, day, period)
         ครอบคลุมทั้งครูหลัก (teacher_id) และครูร่วมสอน (secondary_teacher_id)
-        หมายเหตุ: สำหรับวิชาเรียนรวม (Merged Theory) ถูกรวมเป็น 1 assignment เดียวแล้ว จึงไม่ชนกันเอง
+        พร้อมบังคับเงื่อนไขตามเกณฑ์เฉพาะของวิทยาลัย:
+        1. คาบสอนต่อวันไม่เกิน teacher.max_periods_per_day (เช่น ไม่เกิน 6 คาบ)
+        2. คาบสอนต่อสัปดาห์ไม่เกิน teacher.max_periods_per_week (หัวหน้างาน <= 28, ทั่วไป <= 34, เพดานวิทยาลัย <= 35)
+        3. ห้ามจัดสอนในช่วงเวลาที่ไม่สะดวกสอน (Unavailable Slots)
         """
-        for t_id in self.teachers:
+        for t_id, teacher in self.teachers.items():
             t_assignments = [
                 a_id for a_id, a in self.assignments.items()
                 if a.teacher_id == t_id or a.secondary_teacher_id == t_id
             ]
+            if not t_assignments:
+                continue
+
             for b in range(self.num_blocks):
+                weekly_teach_slots = []
                 for d in range(self.days):
+                    daily_teach_slots = []
                     for p in range(self.periods_per_day):
                         active_teach_slots = []
                         for a_id in t_assignments:
@@ -182,6 +200,16 @@ class TimetableSolver:
                                 active_teach_slots.append(is_teach_active)
                         if active_teach_slots:
                             self.model.Add(sum(active_teach_slots) <= 1)
+                            daily_teach_slots.extend(active_teach_slots)
+
+                    # จำกัดคาบสอนต่อวัน (ไม่เกิน max_periods_per_day เช่น 6 คาบ/วัน)
+                    if daily_teach_slots:
+                        self.model.Add(sum(daily_teach_slots) <= teacher.max_periods_per_day)
+                        weekly_teach_slots.extend(daily_teach_slots)
+
+                # ขีดจำกัดคาบสอนต่อสัปดาห์ของวิทยาลัย (หัวหน้างาน <= 28, ทั่วไป <= 34, เพดานวิทยาลัย <= 35)
+                if weekly_teach_slots:
+                    self.model.Add(sum(weekly_teach_slots) <= teacher.max_periods_per_week)
 
         # ห้ามจัดสอนในช่วงเวลาที่ไม่สะดวกสอน (Unavailable Slots) ของทั้งครูหลักและครูร่วมสอน
         for t_id, teacher in self.teachers.items():

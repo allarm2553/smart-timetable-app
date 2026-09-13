@@ -49,15 +49,15 @@ def test_solve_benchmark():
     assert "546" in eng["room_name"]
     print(f"✅ test_solve_benchmark passed: Merged theory scheduled at {eng['day_name']} คาบ {eng['start_period']}-{eng['end_period']} in {eng['room_name']}")
 
-    # ตรวจสอบวิชาของ ปวส. (ต้อง active เฉพาะบล็อก 1-5, ห้ามมีบล็อก 6)
+    # ตรวจสอบวิชาของ ปวส. ใน V.2 (เกลี่ยเต็ม 18 สัปดาห์: ต้อง active ครบทั้ง 6 บล็อก)
     pvs_lessons = [
         s for s in data["schedule"]
         if s["primary_group_id"] == "G_PVS_1"
     ]
     assert len(pvs_lessons) > 0
     for l in pvs_lessons:
-        assert 6 not in l["active_blocks"], "ปวส. ต้องไม่ active ในบล็อก 6 (สัปดาห์ 16-18)"
-    print("✅ test_solve_benchmark passed: High Voc Cert (ปวส.) blocks constraint verified (weeks 1-15 only)")
+        assert 6 in l["active_blocks"], "ใน V.2 ปวส. เกลี่ยเต็ม 18 สัปดาห์ ต้อง active ในบล็อก 6"
+    print("✅ test_solve_benchmark passed: High Voc Cert (ปวส.) 18-week smoothed blocks verified (weeks 1-18 full coverage)")
 
     # ตรวจสอบว่าไม่มีวิชาใดชนกับคาบที่ 5 (12:00-13:00 พักกลางวัน)
     for s in data["schedule"]:

@@ -7,6 +7,8 @@ class TeacherDTO(BaseModel):
     name: str
     max_periods_per_day: int = 6
     unavailable_slots: List[Tuple[int, int]] = Field(default_factory=list)
+    is_head: bool = False
+    max_periods_per_week: int = 34
 
 class RoomDTO(BaseModel):
     id: str
@@ -19,6 +21,7 @@ class StudentGroupDTO(BaseModel):
     name: str
     level: EducationLevel
     student_count: int
+    pvs_18_weeks: bool = True
 
 class CourseDTO(BaseModel):
     id: str
@@ -51,6 +54,7 @@ class SolveRequest(BaseModel):
     periods_per_day: int = 12
     num_blocks: int = 6
     time_limit_seconds: float = 15.0
+    pvs_18_weeks: bool = True
 
 class ScheduleEntryDTO(BaseModel):
     assignment_id: str

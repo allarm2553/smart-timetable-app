@@ -106,6 +106,10 @@ def validate_move(
     if moving_lesson.get("secondary_group_id"):
         moving_groups.add(moving_lesson["secondary_group_id"])
 
+    moving_teachers = {moving_lesson["teacher_id"]}
+    if moving_lesson.get("secondary_teacher_id"):
+        moving_teachers.add(moving_lesson["secondary_teacher_id"])
+
     for other in schedule:
         if other["assignment_id"] == assignment_id:
             continue  # ข้ามวิชาของตัวเอง
@@ -130,10 +134,6 @@ def validate_move(
         period_label = f"คาบที่ {other['start_period']}–{other['end_period']}"
 
         # 5.1 ชนครูผู้สอน (ทั้งครูหลักและครูร่วมสอน)
-        moving_teachers = {moving_lesson["teacher_id"]}
-        if moving_lesson.get("secondary_teacher_id"):
-            moving_teachers.add(moving_lesson["secondary_teacher_id"])
-
         other_teachers = {other["teacher_id"]}
         if other.get("secondary_teacher_id"):
             other_teachers.add(other["secondary_teacher_id"])
@@ -172,6 +172,38 @@ def validate_move(
             conflicts.append(
                 f"กลุ่มเรียน ({group_names}) มีเรียนวิชา '{other['course_name']}' "
                 f"ใน{day_label} {period_label}"
+            )
+
+    # 6. ตรวจสอบความเหมาะสมของภาระงานสอนครูและคาบเรียนนักศึกษาต่อวัน (Daily Workload Suitability)
+    if teachers_map:
+        for t_id in moving_teachers:
+            t = teachers_map.get(t_id)
+            if t:
+                other_day_periods = sum(
+                    other.get("duration", 1) for other in schedule
+                    if other["assignment_id"] != assignment_id and other["day"] == target_day and (
+                        other["teacher_id"] == t_id or other.get("secondary_teacher_id") == t_id
+                    )
+                )
+                new_day_periods = other_day_periods + duration
+                max_allowed = getattr(t, "max_periods_per_day", 6)
+                if new_day_periods > max_allowed:
+                    warnings.append(
+                        f"ครู ({t.name}) จะมีภาระสอนในวันดังกล่าว {new_day_periods} คาบ ซึ่งเกินเกณฑ์ต่อวัน ({max_allowed} คาบ)"
+                    )
+
+    for g_id in moving_groups:
+        g = groups_map.get(g_id)
+        other_day_periods = sum(
+            other.get("duration", 1) for other in schedule
+            if other["assignment_id"] != assignment_id and other["day"] == target_day and (
+                other["primary_group_id"] == g_id or other.get("secondary_group_id") == g_id
+            )
+        )
+        new_day_periods = other_day_periods + duration
+        if new_day_periods > 8:
+            warnings.append(
+                f"กลุ่มเรียน ({g.name if g else g_id}) จะมีคาบเรียนในวันดังกล่าว {new_day_periods} คาบ ซึ่งเกินเกณฑ์ความเหมาะสมต่อวัน (สูงสุด 8 คาบ)"
             )
 
     is_valid = len(conflicts) == 0

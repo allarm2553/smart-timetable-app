@@ -24,6 +24,16 @@ class Teacher:
     name: str
     max_periods_per_day: int = 6
     unavailable_slots: Set[Tuple[int, int]] = field(default_factory=set)  # (day, period) ที่ไม่สะดวก
+    is_head: bool = False             # เป็นหัวหน้างาน/หัวหน้าแผนกหรือไม่ (เพดานไม่เกิน 28 คาบ/สัปดาห์)
+    max_periods_per_week: int = 34    # เพดานคาบสอนสูงสุดต่อสัปดาห์ (หัวหน้างาน ≤ 28, ทั่วไป ≤ 34, เพดานวิทยาลัย 35)
+
+    def __post_init__(self):
+        # หากกำหนดเป็นหัวหน้างานและยังใช้ค่าเริ่มต้น 34 ให้ปรับเป็น 28 อัตโนมัติ
+        if self.is_head and self.max_periods_per_week == 34:
+            self.max_periods_per_week = 28
+        # เพดานสูงสุดของวิทยาลัยคือ 35 คาบต่อสัปดาห์
+        if self.max_periods_per_week > 35:
+            self.max_periods_per_week = 35
 
 @dataclass
 class Room:
@@ -38,11 +48,13 @@ class StudentGroup:
     name: str
     level: EducationLevel
     student_count: int
+    pvs_18_weeks: bool = True         # โหมดเกลี่ย ปวส. เต็ม 18 สัปดาห์ (V.2 Challenge)
     active_blocks: List[int] = field(init=False)
 
     def __post_init__(self):
-        # ปวช. เรียนบล็อก 0-5 (18 สัปดาห์), ปวส. เรียนบล็อก 0-4 (15 สัปดาห์)
-        if self.level == EducationLevel.VOC_CERT:
+        # ปวช. เรียนบล็อก 0-5 (18 สัปดาห์)
+        # ปวส. หาก pvs_18_weeks=True (V.2 Challenge) เกลี่ยเรียนบล็อก 0-5 (18 สัปดาห์เต็ม)
+        if self.level == EducationLevel.VOC_CERT or self.pvs_18_weeks:
             self.active_blocks = [0, 1, 2, 3, 4, 5]
         else:
             self.active_blocks = [0, 1, 2, 3, 4]

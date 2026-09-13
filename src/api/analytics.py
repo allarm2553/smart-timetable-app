@@ -7,9 +7,11 @@ from typing import Dict, Any, List
 from collections import defaultdict
 
 class WorkloadAnalyticsService:
-    # Standard vocational teaching load thresholds (สอศ.)
-    MIN_STANDARD_LOAD = 16  # Underload if < 16
-    MAX_STANDARD_LOAD = 22  # Overload if > 22
+    # Standard vocational teaching load thresholds & College Specific Caps
+    MIN_STANDARD_LOAD = 16    # ต่ำกว่า 16 = Underload
+    HEAD_TEACHER_CAP = 28     # หัวหน้างาน/หัวหน้าแผนก ไม่เกิน 28 คาบ/สัปดาห์
+    GENERAL_TEACHER_CAP = 34  # ครูผู้สอนทั่วไป ไม่เกิน 34 คาบ/สัปดาห์
+    COLLEGE_MAX_CAP = 35      # เพดานสูงสุดของวิทยาลัย 35 คาบ/สัปดาห์
     TOTAL_DAYTIME_PERIODS = 50  # 5 days x 10 periods (excluding lunch)
 
     def __init__(self, schedule: List[Dict[str, Any]], config: Dict[str, Any]):
@@ -35,12 +37,15 @@ class WorkloadAnalyticsService:
         }
 
     def _compute_teachers(self) -> List[Dict[str, Any]]:
-        # Index scheduled lessons by teacher
+        # Index scheduled lessons by teacher (ทั้งครูหลักและครูร่วมสอน)
         teacher_lessons = defaultdict(list)
         for item in self.schedule:
             t_id = item.get("teacher_id")
             if t_id:
                 teacher_lessons[t_id].append(item)
+            sec_t_id = item.get("secondary_teacher_id")
+            if sec_t_id:
+                teacher_lessons[sec_t_id].append(item)
 
         results = []
         for t in self.teachers:
@@ -75,19 +80,35 @@ class WorkloadAnalyticsService:
             days_active = len(day_periods)
             avg_daily = round(total_periods / days_active, 1) if days_active > 0 else 0.0
 
-            # Evaluation status based on vocational standards
+            # Evaluation status based on College Specific Rules:
+            # 1. สูงสุดวิทยาลัย 35 คาบ
+            # 2. ครูที่เป็นหัวหน้างาน ไม่เกิน 28 คาบ
+            # 3. ครูผู้สอนทั่วไป ไม่เกิน 34 คาบ
+            # 4. ขั้นต่ำมาตรฐาน 16 คาบ
+            is_head = t.get("is_head", False)
+            max_allowed_week = t.get("max_periods_per_week", self.HEAD_TEACHER_CAP if is_head else self.GENERAL_TEACHER_CAP)
+            max_day_allowed = t.get("max_periods_per_day", 6)
+
             status = "balanced"
-            status_label = "พอดีตามเกณฑ์ (16-22 คาบ)"
+            role_label = "หัวหน้างาน (≤28)" if is_head else "ครูทั่วไป (≤34)"
+            status_label = f"เหมาะสม ({total_periods} คาบ - {role_label})"
             status_color = "emerald"
 
-            max_allowed = t.get("max_periods_per_day", 6)
-            if total_periods > self.MAX_STANDARD_LOAD or max_day_load > max_allowed:
+            if total_periods > self.COLLEGE_MAX_CAP:
                 status = "overload"
-                status_label = f"ภาระงานแน่นเกินเกณฑ์ ({total_periods} คาบ)"
+                status_label = f"เกินเพดานสูงสุดวิทยาลัย ({total_periods}/35 คาบ)"
+                status_color = "red"
+            elif total_periods > max_allowed_week:
+                status = "overload"
+                status_label = f"เกินเพดาน{role_label} ({total_periods}/{max_allowed_week} คาบ)"
+                status_color = "red"
+            elif max_day_load > max_day_allowed:
+                status = "overload"
+                status_label = f"สอนต่อวันเกินเกณฑ์ ({max_day_load}/{max_day_allowed} คาบ)"
                 status_color = "red"
             elif total_periods < self.MIN_STANDARD_LOAD:
                 status = "underload"
-                status_label = f"ต่ำกว่าเกณฑ์ขั้นต่ำ ({total_periods} คาบ)"
+                status_label = f"ต่ำกว่าเกณฑ์ขั้นต่ำ ({total_periods}/16 คาบ)"
                 status_color = "amber"
 
             unavailable_count = len(t.get("unavailable_slots", []))
@@ -95,7 +116,10 @@ class WorkloadAnalyticsService:
             results.append({
                 "id": t_id,
                 "name": t["name"],
+                "is_head": is_head,
+                "max_periods_per_week": max_allowed_week,
                 "total_periods": total_periods,
+                "total_semester_hours": total_periods * 18, # เกลี่ยเต็ม 18 สัปดาห์
                 "theory_periods": theory_periods,
                 "practice_periods": practice_periods,
                 "course_count": len(unique_courses),
@@ -140,26 +164,55 @@ class WorkloadAnalyticsService:
         return results
 
     def _compute_groups(self) -> List[Dict[str, Any]]:
-        group_periods = defaultdict(int)
+        group_lessons = defaultdict(list)
         for item in self.schedule:
-            dur = item.get("duration", item.get("duration_periods", 1))
             g1 = item.get("primary_group_id")
             if g1:
-                group_periods[g1] += dur
+                group_lessons[g1].append(item)
             g2 = item.get("secondary_group_id")
             if g2:
-                group_periods[g2] += dur
+                group_lessons[g2].append(item)
 
         results = []
         for g in self.groups:
             g_id = g["id"]
-            periods = group_periods[g_id]
+            lessons = group_lessons[g_id]
+            total_periods = 0
+            day_periods = defaultdict(int)
+
+            for l in lessons:
+                dur = l.get("duration", l.get("duration_periods", 1))
+                day = l.get("day", l.get("day_of_week", 0))
+                total_periods += dur
+                day_periods[day] += dur
+
+            max_day_load = max(day_periods.values()) if day_periods else 0
+            days_active = len(day_periods)
+            avg_daily = round(total_periods / days_active, 1) if days_active > 0 else 0.0
+
+            # ประเมินความเหมาะสมของคาบเรียนนักศึกษา (ไม่น้อยไป และไม่มากไป)
+            if max_day_load > 8:
+                balance_status = f"แน่นเกินไป ({max_day_load} คาบ/วัน)"
+                balance_color = "red"
+            elif max_day_load <= 7:
+                balance_status = f"เหมาะสม กระจายตัวดี (สูงสุด {max_day_load} คาบ/วัน)"
+                balance_color = "emerald"
+            else:
+                balance_status = f"พอเหมาะ (สูงสุด {max_day_load} คาบ/วัน)"
+                balance_color = "blue"
+
             results.append({
                 "id": g_id,
                 "name": g["name"],
                 "level": g.get("level", "VOC_CERT"),
                 "student_count": g.get("student_count", 20),
-                "total_periods": periods
+                "total_periods": total_periods,
+                "total_semester_hours": total_periods * 18,
+                "max_day_load": max_day_load,
+                "days_active": days_active,
+                "avg_daily_load": avg_daily,
+                "balance_status": balance_status,
+                "balance_color": balance_color
             })
         return results
 

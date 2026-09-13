@@ -127,6 +127,10 @@
           <i data-lucide="refresh-cw" class="w-4 h-4"></i>
           <span>ประมวลผล</span>
         </button>
+        <div class="hidden sm:flex items-center space-x-1.5 px-2.5 py-1.5 bg-indigo-50 border border-indigo-200 text-indigo-900 rounded-md text-[11px] font-bold font-display" title="V.2 เงื่อนไขท้าทาย: เกลี่ยคาบ ปวส. 18 สัปดาห์เต็ม และคุมภาระสอนตามเกณฑ์วิทยาลัย (หัวหน้า ≤28, ทั่วไป ≤34, สูงสุด 35)">
+          <i data-lucide="shield-check" class="w-3.5 h-3.5 text-indigo-600"></i>
+          <span>V.2 เกลี่ย ปวส. 18 สัปดาห์</span>
+        </div>
 
         <!-- Dropdown Export Excel -->
         <div class="relative inline-block text-left" id="excelDropdownContainer">
@@ -1166,7 +1170,8 @@
           badgeClass = "bg-amber-100 text-amber-800 border-amber-200";
         }
 
-        const pct = Math.min(Math.round((t.total_periods / 22) * 100), 100);
+        const cap = t.is_head ? 28 : (t.max_periods_per_week || 34);
+        const pct = Math.min(Math.round((t.total_periods / cap) * 100), 100);
         let barColor = "bg-emerald-500";
         if (t.status === 'overload') barColor = "bg-red-500";
         else if (t.status === 'underload') barColor = "bg-amber-500";
@@ -1175,13 +1180,17 @@
           <td class="py-2.5 px-3 font-medium text-slate-800 font-display">
             <div class="flex items-center space-x-1.5">
               <span class="font-bold">${escapeHtml(t.name)}</span>
+              ${t.is_head ? '<span class="px-1.5 py-0.2 text-[9px] bg-purple-100 text-purple-800 font-bold rounded">👑 หัวหน้างาน (≤28)</span>' : '<span class="px-1.5 py-0.2 text-[9px] bg-slate-100 text-slate-700 font-medium rounded">ครูทั่วไป (≤34)</span>'}
               ${t.unavailable_slots_count > 0 ? `<span class="px-1.5 py-0.2 text-[9px] bg-slate-200 text-slate-700 rounded" title="เวลาไม่สะดวกสอน ${t.unavailable_slots_count} คาบ">🚫 ${t.unavailable_slots_count}</span>` : ''}
             </div>
             <div class="text-[10px] text-slate-400">ID: ${t.id} • ${t.course_count} วิชา • สอน ${t.days_teaching} วัน/สัปดาห์</div>
           </td>
           <td class="py-2.5 px-3">
-            <span class="text-sm font-black text-slate-900">${t.total_periods}</span>
-            <span class="text-[11px] text-slate-400">คาบ</span>
+            <div class="flex items-baseline space-x-1">
+              <span class="text-sm font-black text-slate-900">${t.total_periods}</span>
+              <span class="text-[11px] text-slate-400">คาบ</span>
+            </div>
+            <div class="text-[10px] text-indigo-600 font-bold">${t.total_semester_hours || (t.total_periods * 18)} ชม. (18 สัปดาห์)</div>
           </td>
           <td class="py-2.5 px-3 text-slate-600">
             <div class="flex items-center space-x-1 text-[11px]">
@@ -1200,7 +1209,7 @@
             </div>
             <div class="flex justify-between text-[10px] text-slate-400">
               <span>0</span>
-              <span>${pct}% (เกณฑ์ 16-22)</span>
+              <span>${pct}% (เพดาน ${cap} คาบ, สูงสุดวิทยาลัย 35)</span>
             </div>
           </td>
           <td class="py-2.5 px-3 text-center">
@@ -1211,6 +1220,37 @@
         `;
         tbody.appendChild(tr);
       });
+
+      // Render Student Groups Table
+      const grpTbody = document.getElementById('analyticsGroupsTbody');
+      if (grpTbody) {
+        grpTbody.innerHTML = '';
+        (data.groups || []).forEach(g => {
+          const tr = document.createElement('tr');
+          tr.className = "hover:bg-slate-50 transition border-b border-slate-100";
+          let badgeColor = "bg-emerald-100 text-emerald-800 border-emerald-200";
+          if (g.balance_color === 'red') badgeColor = "bg-red-100 text-red-800 border-red-200";
+          else if (g.balance_color === 'blue') badgeColor = "bg-blue-100 text-blue-800 border-blue-200";
+
+          tr.innerHTML = `
+            <td class="py-2.5 px-3 font-bold text-slate-800 font-display">${escapeHtml(g.name)}</td>
+            <td class="py-2.5 px-3 text-slate-600 font-display">
+              <span class="px-2 py-0.5 rounded text-[11px] font-bold ${g.level === 'HIGH_VOC_CERT' ? 'bg-indigo-100 text-indigo-800' : 'bg-slate-100 text-slate-700'}">
+                ${g.level === 'HIGH_VOC_CERT' ? 'ปวส. (เกลี่ย 18 สัปดาห์)' : 'ปวช. (18 สัปดาห์)'}
+              </span>
+            </td>
+            <td class="py-2.5 px-3 font-black text-slate-900">${g.total_periods} คาบ/สัปดาห์</td>
+            <td class="py-2.5 px-3 text-indigo-700 font-bold">${g.total_semester_hours || (g.total_periods * 18)} ชั่วโมง</td>
+            <td class="py-2.5 px-3 text-slate-700">สูงสุด <strong>${g.max_day_load}</strong> คาบ/วัน (เฉลี่ย ${g.avg_daily_load} คาบ)</td>
+            <td class="py-2.5 px-3 text-center">
+              <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border ${badgeColor}">
+                ${g.balance_status || 'เหมาะสม'}
+              </span>
+            </td>
+          `;
+          grpTbody.appendChild(tr);
+        });
+      }
 
       // Render Rooms Utilization Cards
       const roomGrid = document.getElementById('analyticsRoomsGrid');
@@ -1267,23 +1307,40 @@
       const icon = document.getElementById('blockInfoIcon');
 
       if (currentBlock === 6) {
+        const hasPvsInBlock6 = solveResult && solveResult.schedule && solveResult.schedule.some(s => s.primary_group_id === 'G_PVS_1' && (s.active_blocks || []).includes(6));
         if (currentViewMode === 'group' && currentEntityId === 'G_PVS_1') {
-          banner.className = "rounded-lg p-3 border text-sm flex items-start space-x-3 bg-red-50 text-red-800 border-red-300 font-display";
-          icon.innerHTML = `<i data-lucide="alert-circle" class="w-5 h-5 text-red-600"></i>`;
-          title.textContent = "📌 สิ้นสุดภาคการศึกษาของกลุ่ม ปวส. แล้ว (15 สัปดาห์)";
-          desc.textContent = "กลุ่ม ปวส.1 มีกำหนดเรียนเพียง 15 สัปดาห์ (บล็อก 1–5) ในสัปดาห์ที่ 16–18 นี้จึงไม่มีการเรียนการสอน";
-          banner.classList.remove('hidden');
+          if (hasPvsInBlock6) {
+            banner.className = "rounded-lg p-3 border text-sm flex items-start space-x-3 bg-indigo-50 text-indigo-900 border-indigo-300 font-display";
+            icon.innerHTML = `<i data-lucide="sparkles" class="w-5 h-5 text-indigo-600"></i>`;
+            title.textContent = "✨ โหมดเกลี่ยคาบเรียน ปวส. เต็ม 18 สัปดาห์ (V.2 Challenge)";
+            desc.textContent = "หลักสูตร ปวส. ได้รับการเกลี่ยเวลาเรียนให้ครอบคลุมเต็ม 18 สัปดาห์ (บล็อก 1–6) คิดภาระสอนตามคาบจริงในตาราง ไม่น้อยไปและไม่มากไป";
+            banner.classList.remove('hidden');
+          } else {
+            banner.className = "rounded-lg p-3 border text-sm flex items-start space-x-3 bg-red-50 text-red-800 border-red-300 font-display";
+            icon.innerHTML = `<i data-lucide="alert-circle" class="w-5 h-5 text-red-600"></i>`;
+            title.textContent = "📌 สิ้นสุดภาคการศึกษาของกลุ่ม ปวส. แล้ว (15 สัปดาห์)";
+            desc.textContent = "กลุ่ม ปวส.1 มีกำหนดเรียนเพียง 15 สัปดาห์ (บล็อก 1–5) ในสัปดาห์ที่ 16–18 นี้จึงไม่มีการเรียนการสอน";
+            banner.classList.remove('hidden');
+          }
         } else if (currentViewMode === 'teacher' && currentEntityId === 'T_PONG') {
-          banner.className = "rounded-lg p-3 border text-sm flex items-start space-x-3 bg-emerald-50 text-emerald-800 border-emerald-300 font-display";
-          icon.innerHTML = `<i data-lucide="sparkles" class="w-5 h-5 text-emerald-600"></i>`;
-          title.textContent = "💡 ปลดล็อกเวลาว่างของครูผู้สอน (Shared Teacher)";
-          desc.textContent = "อ. พงษ์สถิต สิ้นสุดภาระงานสอน ปวส. ในสัปดาห์ที่ 15 ทำให้ในบล็อกที่ 6 มีเวลาว่างสำหรับจัดสอนวิชาช่างยนต์ให้ ปวช. หรือจัดโครงการพิเศษ";
-          banner.classList.remove('hidden');
+          if (hasPvsInBlock6) {
+            banner.className = "rounded-lg p-3 border text-sm flex items-start space-x-3 bg-emerald-50 text-emerald-800 border-emerald-300 font-display";
+            icon.innerHTML = `<i data-lucide="award" class="w-5 h-5 text-emerald-600"></i>`;
+            title.textContent = "👨‍🏫 ภาระงานสอนต่อเนื่องเต็ม 18 สัปดาห์ (V.2 Balanced Teaching Load)";
+            desc.textContent = "อ. พงษ์สถิต มีการเกลี่ยภาระงานสอน ปวส. และ ปวช. อย่างสมดุลสม่ำเสมอครบ 18 สัปดาห์ ไม่เกินเพดานภาระสอนของวิทยาลัย";
+            banner.classList.remove('hidden');
+          } else {
+            banner.className = "rounded-lg p-3 border text-sm flex items-start space-x-3 bg-emerald-50 text-emerald-800 border-emerald-300 font-display";
+            icon.innerHTML = `<i data-lucide="sparkles" class="w-5 h-5 text-emerald-600"></i>`;
+            title.textContent = "💡 ปลดล็อกเวลาว่างของครูผู้สอน (Shared Teacher)";
+            desc.textContent = "อ. พงษ์สถิต สิ้นสุดภาระงานสอน ปวส. ในสัปดาห์ที่ 15 ทำให้ในบล็อกที่ 6 มีเวลาว่างสำหรับจัดสอนวิชาช่างยนต์ให้ ปวช. หรือจัดโครงการพิเศษ";
+            banner.classList.remove('hidden');
+          }
         } else {
           banner.className = "rounded-lg p-3 border text-sm flex items-start space-x-3 bg-amber-50 text-amber-900 border-amber-300 font-display";
           icon.innerHTML = `<i data-lucide="info" class="w-5 h-5 text-amber-600"></i>`;
-          title.textContent = "สัปดาห์ที่ 16–18 (บล็อกที่ 6 สำหรับ ปวช.)";
-          desc.textContent = "ช่วงสัปดาห์สำหรับนักเรียน ปวช. ครบ 18 สัปดาห์เต็มตามหลักสูตร";
+          title.textContent = "สัปดาห์ที่ 16–18 (บล็อกที่ 6 ครบ 18 สัปดาห์)";
+          desc.textContent = "ช่วงสัปดาห์เรียนครบ 18 สัปดาห์เต็มตามเกณฑ์มาตรฐานอาชีวศึกษา";
           banner.classList.remove('hidden');
         }
       } else {
@@ -1994,8 +2051,14 @@
         return `
           <tr class="border-b border-slate-200 hover:bg-slate-50">
             <td class="py-2 px-3 font-mono font-bold text-slate-700">${t.id}</td>
-            <td class="py-2 px-3 font-bold text-slate-800">${t.name}</td>
-            <td class="py-2 px-3">${t.max_periods_per_day} คาบ/วัน</td>
+            <td class="py-2 px-3 font-bold text-slate-800">
+              ${t.name}
+              ${t.is_head ? '<span class="ml-1.5 px-1.5 py-0.5 bg-purple-100 text-purple-800 text-[10px] font-bold rounded">👑 หัวหน้างาน (≤28)</span>' : '<span class="ml-1.5 px-1.5 py-0.5 bg-slate-100 text-slate-700 text-[10px] font-semibold rounded">ครูทั่วไป (≤34)</span>'}
+            </td>
+            <td class="py-2 px-3 text-xs">
+              <span class="font-bold text-slate-700">${t.max_periods_per_day}</span> คาบ/วัน 
+              <span class="text-slate-400 text-[11px]">(สัปดาห์ละไม่เกิน ${t.max_periods_per_week || (t.is_head ? 28 : 34)} คาบ)</span>
+            </td>
             <td class="py-2 px-3">
               <span class="px-2 py-0.5 rounded text-[11px] font-bold ${
                 lockedCount > 0 ? 'bg-amber-100 text-amber-800 border border-amber-300' : 'bg-emerald-100 text-emerald-800'
@@ -2092,6 +2155,8 @@
       const id = document.getElementById('newTeacherId').value.trim();
       const name = document.getElementById('newTeacherName').value.trim();
       const max_periods = parseInt(document.getElementById('newTeacherMax').value) || 6;
+      const is_head = document.getElementById('newTeacherIsHead').value === 'true';
+      const max_periods_week = is_head ? 28 : 34;
 
       if (!name) return alert("กรุณาระบุชื่อ-นามสกุลครู");
 
@@ -2099,7 +2164,13 @@
         const res = await fetch('/api/teachers', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id: id || undefined, name, max_periods_per_day: max_periods })
+          body: JSON.stringify({ 
+            id: id || undefined, 
+            name, 
+            max_periods_per_day: max_periods,
+            is_head,
+            max_periods_per_week: max_periods_week
+          })
         });
         const data = await res.json();
         if (res.ok && data.is_success) {
@@ -2480,7 +2551,7 @@
               <i data-lucide="plus-circle" class="w-4 h-4 text-blue-600"></i>
               <span>เพิ่มครูผู้สอนใหม่</span>
             </h4>
-            <form onsubmit="handleAddTeacher(event)" class="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
+            <form onsubmit="handleAddTeacher(event)" class="grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
               <div>
                 <label class="block text-[11px] font-bold text-slate-600 mb-1">รหัสครู (ID):</label>
                 <input id="newTeacherId" type="text" placeholder="เช่น T_SOMCHAI" class="w-full bg-white border border-slate-300 rounded px-2.5 py-1.5 text-xs font-mono">
@@ -2489,9 +2560,16 @@
                 <label class="block text-[11px] font-bold text-slate-600 mb-1">ชื่อ-นามสกุล:</label>
                 <input id="newTeacherName" type="text" placeholder="เช่น สมชาย ใจดี" required class="w-full bg-white border border-slate-300 rounded px-2.5 py-1.5 text-xs">
               </div>
+              <div>
+                <label class="block text-[11px] font-bold text-slate-600 mb-1">บทบาท & เพดานสอน:</label>
+                <select id="newTeacherIsHead" class="w-full bg-white border border-slate-300 rounded px-2 py-1.5 text-xs">
+                  <option value="false">ครูทั่วไป (≤ 34 คาบ/สัปดาห์)</option>
+                  <option value="true">👑 หัวหน้างาน (≤ 28 คาบ/สัปดาห์)</option>
+                </select>
+              </div>
               <div class="flex items-center space-x-2">
                 <div class="flex-1">
-                  <label class="block text-[11px] font-bold text-slate-600 mb-1">คาบสอนสูงสุด/วัน:</label>
+                  <label class="block text-[11px] font-bold text-slate-600 mb-1">สูงสุด/วัน:</label>
                   <input id="newTeacherMax" type="number" value="6" min="1" max="10" class="w-full bg-white border border-slate-300 rounded px-2 py-1.5 text-xs">
                 </div>
                 <button type="submit" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded text-xs font-display transition self-end">
@@ -2964,10 +3042,10 @@
               <thead class="bg-slate-50 text-slate-600 font-display font-bold border-b border-slate-200">
                 <tr>
                   <th class="py-2.5 px-3">ครูผู้สอน</th>
-                  <th class="py-2.5 px-3">คาบรวม/สัปดาห์</th>
+                  <th class="py-2.5 px-3">คาบในตาราง / ภาคเรียน</th>
                   <th class="py-2.5 px-3">สัดส่วน ทฤษฎี / ปฏิบัติ</th>
                   <th class="py-2.5 px-3">เฉลี่ย/วัน (สูงสุด)</th>
-                  <th class="py-2.5 px-3 w-44">ความจุภาระงาน (เกณฑ์ 22 คาบ)</th>
+                  <th class="py-2.5 px-3 w-52">ความจุภาระงาน (เพดานหัวหน้า 28 / ทั่วไป 34)</th>
                   <th class="py-2.5 px-3 text-center">สถานะตามเกณฑ์</th>
                 </tr>
               </thead>
@@ -2978,7 +3056,35 @@
           </div>
         </div>
 
-        <!-- Section 2: Room Utilization Cards Grid -->
+        <!-- Section 2: Student Groups Workload & 18-Week Balance -->
+        <div class="bg-white rounded-xl border border-slate-200 shadow-xs p-5 space-y-3">
+          <div class="border-b border-slate-200 pb-3">
+            <h4 class="font-bold text-slate-900 font-display text-sm flex items-center space-x-2">
+              <span>🎓 ความเหมาะสมของคาบเรียนนักศึกษา & การเกลี่ย ปวส. 18 สัปดาห์ (Student Balance)</span>
+            </h4>
+            <p class="text-xs text-slate-500">ตรวจสอบความเหมาะสมของคาบเรียนต่อวัน (ไม่เกิน 7-8 คาบ/วัน) และการกระจายชั่วโมงเรียนตลอด 18 สัปดาห์</p>
+          </div>
+
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs">
+              <thead class="bg-slate-50 text-slate-600 font-display font-bold border-b border-slate-200">
+                <tr>
+                  <th class="py-2.5 px-3">กลุ่มเรียน</th>
+                  <th class="py-2.5 px-3">ระดับชั้น</th>
+                  <th class="py-2.5 px-3">คาบในตาราง/สัปดาห์</th>
+                  <th class="py-2.5 px-3">ชั่วโมงตลอดภาคเรียน (18 สัปดาห์)</th>
+                  <th class="py-2.5 px-3">เรียนสูงสุด/วัน</th>
+                  <th class="py-2.5 px-3 text-center">สถานะความเหมาะสม</th>
+                </tr>
+              </thead>
+              <tbody id="analyticsGroupsTbody" class="divide-y divide-slate-100">
+                <!-- Populated by JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Section 3: Room Utilization Cards Grid -->
         <div class="bg-white rounded-xl border border-slate-200 shadow-xs p-5 space-y-3">
           <div class="border-b border-slate-200 pb-3">
             <h4 class="font-bold text-slate-900 font-display text-sm flex items-center space-x-2">

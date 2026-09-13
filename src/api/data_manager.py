@@ -55,7 +55,9 @@ class TimetableDataManager:
                 "id": t.id,
                 "name": t.name,
                 "max_periods_per_day": t.max_periods_per_day,
-                "unavailable_slots": list(t.unavailable_slots)
+                "unavailable_slots": list(t.unavailable_slots),
+                "is_head": getattr(t, "is_head", False),
+                "max_periods_per_week": getattr(t, "max_periods_per_week", 28 if getattr(t, "is_head", False) else 34)
             } for t in dataset["teachers"]
         ]
         self.rooms = [
@@ -71,7 +73,8 @@ class TimetableDataManager:
                 "id": g.id,
                 "name": g.name,
                 "level": g.level.value,
-                "student_count": g.student_count
+                "student_count": g.student_count,
+                "pvs_18_weeks": getattr(g, "pvs_18_weeks", True)
             } for g in dataset["groups"]
         ]
         self.courses = {
@@ -119,11 +122,15 @@ class TimetableDataManager:
         # Check if ID exists
         if any(t["id"] == t_id for t in self.teachers):
             raise ValueError(f"รหัสครู '{t_id}' มีอยู่แล้วในระบบ")
+        is_head = teacher_data.get("is_head", False)
+        max_week = teacher_data.get("max_periods_per_week", 28 if is_head else 34)
         new_teacher = {
             "id": t_id,
             "name": teacher_data["name"],
             "max_periods_per_day": teacher_data.get("max_periods_per_day", 6),
-            "unavailable_slots": teacher_data.get("unavailable_slots", [])
+            "unavailable_slots": teacher_data.get("unavailable_slots", []),
+            "is_head": is_head,
+            "max_periods_per_week": min(max_week, 35)
         }
         self.teachers.append(new_teacher)
         self._save()
@@ -238,7 +245,9 @@ class TimetableDataManager:
                 id=t["id"],
                 name=t["name"],
                 max_periods_per_day=t.get("max_periods_per_day", 6),
-                unavailable_slots=set(tuple(x) for x in t.get("unavailable_slots", []))
+                unavailable_slots=set(tuple(x) for x in t.get("unavailable_slots", [])),
+                is_head=t.get("is_head", False),
+                max_periods_per_week=t.get("max_periods_per_week", 28 if t.get("is_head") else 34)
             ) for t in self.teachers
         ]
         rooms = [
@@ -254,7 +263,8 @@ class TimetableDataManager:
                 id=g["id"],
                 name=g["name"],
                 level=EducationLevel(g["level"]),
-                student_count=g["student_count"]
+                student_count=g["student_count"],
+                pvs_18_weeks=g.get("pvs_18_weeks", True)
             ) for g in self.groups
         ]
         courses_dict = {

@@ -1692,6 +1692,12 @@
             }
             const line3 = `${groupText} ${teacherText}`;
 
+            const isPinned = !!lesson.is_pinned;
+            const pinnedCardStyle = isPinned ? 'ring-2 ring-indigo-600 border-indigo-700 bg-amber-200' : 'bg-[#FACC15] hover:bg-[#FDE047] border-slate-700/80';
+            const cardTitle = isPinned 
+              ? '📌 วิชานี้ถูกล็อกคาบเรียนตายตัว (คลิก 🔒 เพื่อปลดล็อก หรือคลิกเพื่อแก้ไข)' 
+              : '🖐️ ลากเพื่อย้ายหรือสลับคาบเรียน (หรือคลิกเพื่อแก้ไข)';
+
             // สไตล์ Yellow Box ตามมาตรฐาน พร้อมความสามารถลากวาง (Drag & Drop) และคลิกเพื่อแก้ไข
             rowHtml += `
               <td colspan="${colspan}"
@@ -1703,19 +1709,28 @@
                   ondrop="handleDrop(event, ${day.id}, ${p}, '${lesson.assignment_id}')"
                   class="timetable-drop-zone border-r border-slate-400 p-0.5 align-top relative transition-all">
                 <div id="lesson-${lesson.assignment_id}"
-                     draggable="true"
+                     draggable="${!isPinned}"
                      ondragstart="handleDragStart(event, '${lesson.assignment_id}', ${lesson.duration}, ${lesson.day}, ${lesson.start_period})"
                      ondragend="handleDragEnd(event)"
                      onclick="handleLessonClick(event, '${lesson.assignment_id}')"
-                     title="🖐️ ลากเพื่อย้ายหรือสลับคาบเรียน (หรือคลิกเพื่อแก้ไข)"
-                     class="lesson-card h-full min-h-[74px] bg-[#FACC15] hover:bg-[#FDE047] border border-slate-700/80 p-1.5 flex flex-col justify-between text-left text-slate-900 shadow-xs transition-all cursor-grab active:cursor-grabbing hover:ring-2 hover:ring-blue-600 group select-none">
-                  <!-- บรรทัดที่ 1: รหัสวิชา + ไอคอนกริปลาก -->
+                     title="${cardTitle}"
+                     class="lesson-card h-full min-h-[74px] ${pinnedCardStyle} border p-1.5 flex flex-col justify-between text-left text-slate-900 shadow-xs transition-all ${isPinned ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing hover:ring-2 hover:ring-blue-600'} group select-none">
+                  <!-- บรรทัดที่ 1: รหัสวิชา + ไอคอนกริปลาก + ปุ่มล็อก -->
                   <div class="font-bold text-[11px] font-mono leading-tight tracking-tight text-slate-950 flex items-center justify-between">
                     <div class="flex items-center space-x-1">
-                      <span class="text-slate-500 font-bold text-xs select-none cursor-grab" title="คลิกลากเพื่อย้ายหรือสลับ">⋮⋮</span>
+                      ${!isPinned ? '<span class="text-slate-500 font-bold text-xs select-none cursor-grab" title="คลิกลากเพื่อย้ายหรือสลับ">⋮⋮</span>' : ''}
                       <span>${line1_code}</span>
                     </div>
                     <div class="flex items-center space-x-1">
+                      ${isPinned ? `
+                        <button type="button" onclick="toggleQuickPin(event, '${lesson.assignment_id}', false)" class="text-[11px] bg-indigo-600 hover:bg-indigo-700 text-white px-1 py-0.5 rounded font-bold shadow-xs transition flex items-center gap-0.5" title="วิชานี้ล็อกเวลาตายตัวไว้ (คลิกเพื่อปลดล็อก)">
+                          🔒
+                        </button>
+                      ` : `
+                        <button type="button" onclick="toggleQuickPin(event, '${lesson.assignment_id}', true, ${day.id}, ${p}, '${lesson.room_id}')" class="opacity-0 group-hover:opacity-100 text-[11px] bg-slate-700/10 hover:bg-indigo-600 hover:text-white px-1 py-0.5 rounded text-slate-700 transition" title="คลิกเพื่อล็อกคาบนี้ตายตัว (วิชาสามัญ/ตารางล่วงหน้า)">
+                          🔓
+                        </button>
+                      `}
                       ${isMerged ? '<span class="text-[9px] bg-purple-700 text-white px-1 rounded font-sans font-bold">รวม</span>' : ''}
                       ${lesson.secondary_teacher_name ? '<span class="text-[9px] bg-teal-700 text-white px-1 rounded font-sans font-bold" title="ครูร่วมสอน: ' + lesson.secondary_teacher_name + '">👥ร่วม</span>' : ''}
                       <span class="opacity-0 group-hover:opacity-100 text-[10px] text-blue-700 transition" title="คลิกเพื่อปรับย้ายละเอียด">✏️</span>
@@ -1830,6 +1845,47 @@
     let draggedDay = null;
     let draggedStartPeriod = null;
     let wasDragging = false;
+
+    async function toggleQuickPin(event, assignmentId, shouldPin, day = null, period = null, roomId = null) {
+      if (event) {
+        event.stopPropagation();
+        event.preventDefault();
+      }
+      try {
+        const payload = {
+          is_pinned: shouldPin,
+          fixed_day: shouldPin ? day : null,
+          fixed_start_period: shouldPin ? period : null,
+          fixed_room_id: shouldPin ? roomId : null
+        };
+        const res = await fetch(`/api/assignments/${assignmentId}/pin`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (data.is_success) {
+          if (scheduleData && scheduleData.schedule) {
+            const entry = scheduleData.schedule.find(s => s.assignment_id === assignmentId);
+            if (entry) {
+              entry.is_pinned = shouldPin;
+              entry.fixed_day = payload.fixed_day;
+              entry.fixed_start_period = payload.fixed_start_period;
+              entry.fixed_room_id = payload.fixed_room_id;
+            }
+          }
+          await loadFullDataManager();
+          renderTimetable();
+          const actionMsg = shouldPin ? '📌 ล็อกคาบเรียนตายตัวเรียบร้อยแล้ว (AI Solver จะไม่ย้ายวิชานี้)' : '🔓 ปลดล็อกคาบเรียนเรียบร้อยแล้ว';
+          alert(actionMsg);
+        } else {
+          alert('ไม่สามารถล็อก/ปลดล็อกได้: ' + (data.detail || 'เกิดข้อผิดพลาด'));
+        }
+      } catch (err) {
+        console.error(err);
+        alert('เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์');
+      }
+    }
 
     function handleLessonClick(event, assignmentId) {
       if (wasDragging) return;
@@ -2567,6 +2623,14 @@
           typeBadge = '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">ปฏิบัติ</span>';
         }
 
+        if (a.is_pinned && a.fixed_day !== null && a.fixed_day !== undefined && a.fixed_start_period !== null && a.fixed_start_period !== undefined) {
+          const days = ["จ.", "อ.", "พ.", "พฤ.", "ศ."];
+          const dName = days[a.fixed_day] || `วัน ${a.fixed_day + 1}`;
+          const rName = a.fixed_room_id ? ` [${a.fixed_room_id}]` : '';
+          const tExt = a.external_teacher_name ? ` (${a.external_teacher_name})` : '';
+          typeBadge += ` <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-100 text-indigo-800 border border-indigo-200 ml-1 inline-flex items-center gap-1 shadow-xs" title="ล็อกคาบเรียนตายตัว${tExt}">📌 ${dName} คาบ ${a.fixed_start_period}${rName}</span>`;
+        }
+
         return `
           <tr class="border-b border-slate-200 hover:bg-slate-50">
             <td class="py-2.5 px-3 font-mono font-bold text-slate-800">${code}</td>
@@ -2863,6 +2927,32 @@
         fullDataManagerData.teachers.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
       tSelect2.value = a.secondary_teacher_id || '';
 
+      // จัดการตัวเลือกการล็อกคาบเรียนตายตัว (Pinned / Pre-assigned Lessons)
+      const isPinned = !!a.is_pinned;
+      const chkPinned = document.getElementById('editCourseIsPinned');
+      if (chkPinned) chkPinned.checked = isPinned;
+
+      const fixedDay = document.getElementById('editCourseFixedDay');
+      if (fixedDay) fixedDay.value = (a.fixed_day !== undefined && a.fixed_day !== null) ? a.fixed_day : 0;
+
+      const fixedPeriod = document.getElementById('editCourseFixedStartPeriod');
+      if (fixedPeriod) fixedPeriod.value = (a.fixed_start_period !== undefined && a.fixed_start_period !== null) ? a.fixed_start_period : 1;
+
+      const fixedRoom = document.getElementById('editCourseFixedRoom');
+      if (fixedRoom) {
+        let roomOpts = '<option value="">-- อัตโนมัติ (ให้ระบบเลือกตามประเภทห้อง) --</option>';
+        if (fullDataManagerData && fullDataManagerData.rooms) {
+          roomOpts += fullDataManagerData.rooms.map(r => `<option value="${r.id}">${r.name}</option>`).join('');
+        }
+        fixedRoom.innerHTML = roomOpts;
+        fixedRoom.value = a.fixed_room_id || '';
+      }
+
+      const extTeacher = document.getElementById('editCourseExternalTeacher');
+      if (extTeacher) extTeacher.value = a.external_teacher_name || '';
+
+      toggleEditPinnedOptions();
+
       document.getElementById('editGroupSection').classList.add('hidden');
       document.getElementById('editTeacherSection').classList.add('hidden');
       document.getElementById('editRoomSection').classList.add('hidden');
@@ -2870,6 +2960,18 @@
 
       document.getElementById('editEntityModal').classList.remove('hidden');
       lucide.createIcons();
+    }
+
+    function toggleEditPinnedOptions() {
+      const chk = document.getElementById('editCourseIsPinned');
+      const box = document.getElementById('editCoursePinnedOptions');
+      if (chk && box) {
+        if (chk.checked) {
+          box.classList.remove('hidden');
+        } else {
+          box.classList.add('hidden');
+        }
+      }
     }
 
     function closeEditEntityModal() {
@@ -2956,6 +3058,12 @@
             return;
           }
 
+          const is_pinned = document.getElementById('editCourseIsPinned') ? document.getElementById('editCourseIsPinned').checked : false;
+          const fixed_day = is_pinned ? parseInt(document.getElementById('editCourseFixedDay').value) : null;
+          const fixed_start_period = is_pinned ? parseInt(document.getElementById('editCourseFixedStartPeriod').value) : null;
+          const fixed_room_id = is_pinned ? (document.getElementById('editCourseFixedRoom').value || null) : null;
+          const external_teacher_name = is_pinned ? (document.getElementById('editCourseExternalTeacher').value.trim() || null) : null;
+
           body = {
             name,
             code,
@@ -2968,7 +3076,12 @@
             secondary_teacher_id,
             is_rotation,
             allow_merge: !!secondary_group_id,
-            teaching_mode
+            teaching_mode,
+            is_pinned,
+            fixed_day,
+            fixed_start_period,
+            fixed_room_id,
+            external_teacher_name
           };
         }
 
@@ -3550,6 +3663,60 @@
               <div>
                 <label class="block text-slate-500 text-[11px] mb-0.5">ครูผู้สอนร่วม (ถ้ามีทีมสอน 2 คน)</label>
                 <select id="editCourseSecondaryTeacher" class="w-full border border-slate-300 rounded px-2.5 py-1.5 bg-white"></select>
+              </div>
+            </div>
+          </div>
+
+          <!-- Pinned / Pre-assigned Schedule Section (วิชาสามัญ/คาบกำหนดตายตัวล่วงหน้า) -->
+          <div class="border-t border-slate-200 pt-2 space-y-2 bg-indigo-50/60 p-2.5 rounded-lg border border-indigo-200">
+            <div class="flex items-center justify-between">
+              <label class="flex items-center gap-2 cursor-pointer select-none">
+                <input type="checkbox" id="editCourseIsPinned" class="rounded text-indigo-600 focus:ring-indigo-500 w-4 h-4" onchange="toggleEditPinnedOptions()">
+                <span class="font-bold text-indigo-950 text-xs flex items-center gap-1">
+                  📌 ล็อกคาบเรียนตายตัว (วิชาสามัญ / คาบที่ลงล่วงหน้า)
+                </span>
+              </label>
+              <span class="text-[10px] text-indigo-700 font-medium">AI Solver จะจัดวิชาอื่นหลบช่องนี้</span>
+            </div>
+            
+            <div id="editCoursePinnedOptions" class="hidden space-y-2 pt-2 border-t border-indigo-200/70">
+              <div class="grid grid-cols-2 gap-2">
+                <div>
+                  <label class="block text-slate-700 text-[11px] mb-0.5 font-bold">วันที่ล็อกเรียน *</label>
+                  <select id="editCourseFixedDay" class="w-full border border-indigo-200 rounded px-2 py-1.5 text-xs bg-white">
+                    <option value="0">วันจันทร์</option>
+                    <option value="1">วันอังคาร</option>
+                    <option value="2">วันพุธ</option>
+                    <option value="3">วันพฤหัสบดี</option>
+                    <option value="4">วันศุกร์</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="block text-slate-700 text-[11px] mb-0.5 font-bold">คาบเริ่มต้น *</label>
+                  <select id="editCourseFixedStartPeriod" class="w-full border border-indigo-200 rounded px-2 py-1.5 text-xs bg-white">
+                    <option value="1">คาบ 1 (08:00 - 09:00)</option>
+                    <option value="2">คาบ 2 (09:00 - 10:00)</option>
+                    <option value="3">คาบ 3 (10:00 - 11:00)</option>
+                    <option value="4">คาบ 4 (11:00 - 12:00)</option>
+                    <option value="6">คาบ 6 (13:00 - 14:00)</option>
+                    <option value="7">คาบ 7 (14:00 - 15:00)</option>
+                    <option value="8">คาบ 8 (15:00 - 16:00)</option>
+                    <option value="9">คาบ 9 (16:00 - 17:00)</option>
+                    <option value="10">คาบ 10 (17:00 - 18:00)</option>
+                    <option value="11">คาบ 11 (18:00 - 19:00 ช่วงค่ำ)</option>
+                    <option value="12">คาบ 12 (19:00 - 20:00 ช่วงค่ำ)</option>
+                  </select>
+                </div>
+              </div>
+              <div class="grid grid-cols-2 gap-2">
+                <div>
+                  <label class="block text-slate-700 text-[11px] mb-0.5 font-bold">ห้องเรียนที่ล็อก</label>
+                  <select id="editCourseFixedRoom" class="w-full border border-indigo-200 rounded px-2 py-1.5 text-xs bg-white"></select>
+                </div>
+                <div>
+                  <label class="block text-slate-700 text-[11px] mb-0.5 font-bold">ชื่อครูสามัญ/ผู้สอนนอกแผนก</label>
+                  <input type="text" id="editCourseExternalTeacher" placeholder="เช่น อ.สมศรี (แผนกสามัญ)" class="w-full border border-indigo-200 rounded px-2 py-1.5 text-xs bg-white">
+                </div>
               </div>
             </div>
           </div>

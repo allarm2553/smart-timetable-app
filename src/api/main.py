@@ -26,7 +26,7 @@ from src.api.schemas import (
     SolveRequest, SolveResponse, ScheduleEntryDTO,
     TeacherDTO, RoomDTO, StudentGroupDTO, CourseDTO, LessonAssignmentDTO,
     ValidateMoveRequest, ValidateMoveResponse, ApplyMoveRequest, ApplyMoveResponse,
-    SwapLessonsRequest, SwapLessonsResponse
+    SwapLessonsRequest, SwapLessonsResponse, PinAssignmentRequest
 )
 
 app = FastAPI(
@@ -198,7 +198,12 @@ def _run_solver(
                 start_period=p + 1,  # แปลงเป็นคาบ 1-indexed สำหรับผู้ใช้
                 end_period=p + dur,
                 duration=dur,
-                active_blocks=[b + 1 for b in r["active_blocks"]] # บล็อก 1-6
+                active_blocks=[b + 1 for b in r["active_blocks"]], # บล็อก 1-6
+                is_pinned=getattr(ass, "is_pinned", False),
+                fixed_day=getattr(ass, "fixed_day", None),
+                fixed_start_period=getattr(ass, "fixed_start_period", None),
+                fixed_room_id=getattr(ass, "fixed_room_id", None),
+                external_teacher_name=getattr(ass, "external_teacher_name", None)
             )
             schedule_entries.append(entry)
 
@@ -535,6 +540,22 @@ def api_delete_assignment(assignment_id: str):
     if not success:
         raise HTTPException(status_code=404, detail="ไม่พบแผนการสอนที่ต้องการลบ")
     return {"is_success": True, "message": "ลบแผนการสอนเรียบร้อย"}
+
+@app.put("/api/assignments/{assignment_id}/pin")
+def api_pin_assignment(assignment_id: str, payload: PinAssignmentRequest):
+    try:
+        res = data_manager.toggle_assignment_pin(
+            assignment_id=assignment_id,
+            is_pinned=payload.is_pinned,
+            fixed_day=payload.fixed_day,
+            fixed_start_period=payload.fixed_start_period,
+            fixed_room_id=payload.fixed_room_id,
+            external_teacher_name=payload.external_teacher_name
+        )
+        return {"is_success": True, "data": res}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
 
 @app.post("/api/solve/current", response_model=SolveResponse)
 def solve_current():

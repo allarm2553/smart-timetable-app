@@ -85,4 +85,9 @@ class LessonAssignment:
     secondary_group_id: Optional[str] = None     # สำหรับวิชาเรียนรวม (Merged Class 2 กลุ่ม)
     is_rotation: bool = False                     # เป็นวิชาฐานหมุนเวียนหรือไม่
     teaching_mode: str = "SINGLE"                # โหมดการสอน: SINGLE, CO_TEACHING, SPLIT_THEORY_PRACTICE
+    is_pinned: bool = False                      # ล็อกคาบเรียนตายตัวล่วงหน้า (วิชาสามัญ/ตารางฟิกซ์)
+    fixed_day: Optional[int] = None              # วันที่กำหนดตายตัว (0=จันทร์, ..., 4=ศุกร์)
+    fixed_start_period: Optional[int] = None     # คาบเริ่มต้นที่กำหนด (1-12)
+    fixed_room_id: Optional[str] = None          # ห้องเรียนที่กำหนด
+    external_teacher_name: Optional[str] = None  # ชื่อครูสามัญ/ผู้สอนนอกแผนก
 

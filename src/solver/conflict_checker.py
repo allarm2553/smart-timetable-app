@@ -25,6 +25,9 @@ def validate_move(
     if not moving_lesson:
         return False, [f"ไม่พบวิชา ID '{assignment_id}' ในตาราง"], []
 
+    if moving_lesson.get("is_pinned"):
+        conflicts.append(f"วิชา '{moving_lesson.get('course_name', assignment_id)}' ถูกล็อกเวลาตายตัวไว้ล่วงหน้า (Pinned Lesson) หากต้องการย้าย กรุณาปลดล็อกก่อน")
+
     duration = moving_lesson["duration"]
     target_end_period = target_start_period + duration - 1
 
@@ -249,6 +252,10 @@ def validate_swap(
 
     if assignment_id_1 == assignment_id_2:
         return False, ["ไม่สามารถสลับวิชาเดียวกันได้"], [], []
+
+    if l1.get("is_pinned") or l2.get("is_pinned"):
+        pinned_name = l1.get("course_name") if l1.get("is_pinned") else l2.get("course_name")
+        conflicts.append(f"วิชา '{pinned_name}' ถูกล็อกเวลาตายตัวไว้ล่วงหน้า (Pinned Lesson) หากต้องการสลับ กรุณาปลดล็อกก่อน")
 
     # 1. เช็กความยาวคาบ
     if l1["duration"] != l2["duration"]:

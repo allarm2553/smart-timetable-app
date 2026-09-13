@@ -2,7 +2,7 @@ from typing import Dict, List, Tuple, Optional
 from ortools.sat.python import cp_model
 from src.solver.models import (
     Teacher, Room, StudentGroup, Course, LessonAssignment,
-    EducationLevel, CourseType
+    EducationLevel, CourseType, RoomType
 )
 
 class TimetableSolver:
@@ -25,6 +25,19 @@ class TimetableSolver:
             a.id: a for a in assignments
             if a.primary_group_id in self.groups and a.teacher_id in self.teachers
         }
+
+        # รองรับห้องภายนอก / ห้องวิชาสามัญที่ถูกระบุใน fixed_room_id โดยอัตโนมัติ
+        for a in self.assignments.values():
+            if getattr(a, "is_pinned", False) and getattr(a, "fixed_room_id", None):
+                f_rid = a.fixed_room_id
+                if f_rid not in self.rooms:
+                    self.rooms[f_rid] = Room(
+                        id=f_rid,
+                        name=f_rid if f_rid.startswith("ห้อง") or f_rid.startswith("ROOM") else f"ห้อง {f_rid}",
+                        room_type=RoomType.CLASSROOM,
+                        capacity=100
+                    )
+
         self.days = days
         self.periods_per_day = periods_per_day
         self.num_blocks = num_blocks
@@ -64,7 +77,19 @@ class TimetableSolver:
                     # ห้ามวิชาใดๆ ทับคาบพักกลางวัน (index 4: 12:00-13:00)
                     overlaps_lunch = (p <= self.lunch_period < p + duration)
 
-                    if is_internship_grp and is_theory:
+                    # ตรวจสอบการล็อกคาบเรียนตายตัวล่วงหน้า (Pinned / Pre-assigned Lessons สำหรับวิชาสามัญ)
+                    is_pinned = getattr(a, "is_pinned", False)
+                    fixed_day = getattr(a, "fixed_day", None)
+                    fixed_start = getattr(a, "fixed_start_period", None)
+
+                    if is_pinned and fixed_day is not None and fixed_start is not None:
+                        # fixed_start เป็น 1-indexed (เช่น คาบ 1 คือ index 0)
+                        target_p = fixed_start - 1
+                        if d == fixed_day and p == target_p:
+                            is_valid_time = True
+                        else:
+                            is_valid_time = False
+                    elif is_internship_grp and is_theory:
                         # กลุ่มฝึกงานในสถานประกอบการ/ทวิภาคี: ทฤษฎีต้องจัดหลัง 18:00 น. (คาบ 11-12 index 10-11)
                         is_valid_time = (p >= 10 and p + duration <= self.periods_per_day)
                     else:
@@ -108,6 +133,11 @@ class TimetableSolver:
                 valid_rooms = [r for r in self.rooms.values() if r.room_type == a.course.required_room_type]
                 if not valid_rooms:
                     valid_rooms = list(self.rooms.values())
+
+            # ล็อกห้องเรียนกรณีมีการระบุห้องตายตัว (Fixed Room)
+            fixed_room_id = getattr(a, "fixed_room_id", None)
+            if getattr(a, "is_pinned", False) and fixed_room_id and fixed_room_id in self.rooms:
+                valid_rooms = [self.rooms[fixed_room_id]]
 
             room_vars = []
             for r in valid_rooms:
@@ -355,7 +385,12 @@ class TimetableSolver:
                 "room": chosen_room,
                 "teacher": self.teachers[a.teacher_id],
                 "secondary_teacher": self.teachers.get(a.secondary_teacher_id) if a.secondary_teacher_id else None,
-                "active_blocks": active_blocks
+                "active_blocks": active_blocks,
+                "is_pinned": getattr(a, "is_pinned", False),
+                "fixed_day": getattr(a, "fixed_day", None),
+                "fixed_start_period": getattr(a, "fixed_start_period", None),
+                "fixed_room_id": getattr(a, "fixed_room_id", None),
+                "external_teacher_name": getattr(a, "external_teacher_name", None)
             })
 
         return results

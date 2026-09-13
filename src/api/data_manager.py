@@ -333,7 +333,12 @@ class TimetableDataManager:
             "secondary_teacher_id": data.get("secondary_teacher_id") or None,
             "secondary_group_id": data.get("secondary_group_id") or None,
             "is_rotation": bool(data.get("is_rotation", False)),
-            "teaching_mode": data.get("teaching_mode", "SINGLE")
+            "teaching_mode": data.get("teaching_mode", "SINGLE"),
+            "is_pinned": bool(data.get("is_pinned", False)),
+            "fixed_day": data.get("fixed_day"),
+            "fixed_start_period": data.get("fixed_start_period"),
+            "fixed_room_id": data.get("fixed_room_id"),
+            "external_teacher_name": data.get("external_teacher_name")
         }
         self.assignments.append(assignment_item)
         self._sanitize_data()
@@ -385,10 +390,48 @@ class TimetableDataManager:
             target_a["is_rotation"] = bool(data["is_rotation"])
         if "teaching_mode" in data:
             target_a["teaching_mode"] = data["teaching_mode"]
+        if "is_pinned" in data:
+            target_a["is_pinned"] = bool(data["is_pinned"])
+        if "fixed_day" in data:
+            target_a["fixed_day"] = data["fixed_day"] if data["fixed_day"] is not None else None
+        if "fixed_start_period" in data:
+            target_a["fixed_start_period"] = int(data["fixed_start_period"]) if data["fixed_start_period"] is not None else None
+        if "fixed_room_id" in data:
+            target_a["fixed_room_id"] = data["fixed_room_id"] or None
+        if "external_teacher_name" in data:
+            target_a["external_teacher_name"] = data["external_teacher_name"] or None
 
         self._sanitize_data()
         self._save()
         return {"assignment": target_a, "course": self.courses.get(c_id)}
+
+    def toggle_assignment_pin(self, assignment_id: str, is_pinned: bool, fixed_day: Optional[int] = None, fixed_start_period: Optional[int] = None, fixed_room_id: Optional[str] = None, external_teacher_name: Optional[str] = None) -> Dict[str, Any]:
+        target_a = None
+        for a in self.assignments:
+            if a["id"] == assignment_id:
+                target_a = a
+                break
+        if not target_a:
+            raise ValueError(f"ไม่พบแผนการสอนรหัส '{assignment_id}'")
+
+        target_a["is_pinned"] = is_pinned
+        if is_pinned:
+            if fixed_day is not None:
+                target_a["fixed_day"] = fixed_day
+            if fixed_start_period is not None:
+                target_a["fixed_start_period"] = fixed_start_period
+            if fixed_room_id is not None:
+                target_a["fixed_room_id"] = fixed_room_id
+            if external_teacher_name is not None:
+                target_a["external_teacher_name"] = external_teacher_name
+        else:
+            target_a["fixed_day"] = None
+            target_a["fixed_start_period"] = None
+            target_a["fixed_room_id"] = None
+            target_a["external_teacher_name"] = None
+
+        self._save()
+        return target_a
 
     # Convert to domain models for solver
     def get_solver_models(self):
@@ -461,7 +504,12 @@ class TimetableDataManager:
                         secondary_teacher_id=sec_tch,
                         secondary_group_id=sec_grp,
                         is_rotation=a.get("is_rotation", False),
-                        teaching_mode=a.get("teaching_mode", "SINGLE")
+                        teaching_mode=a.get("teaching_mode", "SINGLE"),
+                        is_pinned=bool(a.get("is_pinned", False)),
+                        fixed_day=a.get("fixed_day"),
+                        fixed_start_period=a.get("fixed_start_period"),
+                        fixed_room_id=a.get("fixed_room_id"),
+                        external_teacher_name=a.get("external_teacher_name")
                     )
                 )
         return teachers, rooms, groups, courses_dict, assignments

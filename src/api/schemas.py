@@ -46,6 +46,11 @@ class LessonAssignmentDTO(BaseModel):
     secondary_group_id: Optional[str] = None
     is_rotation: bool = False
     teaching_mode: str = "SINGLE"
+    is_pinned: bool = False
+    fixed_day: Optional[int] = None
+    fixed_start_period: Optional[int] = None
+    fixed_room_id: Optional[str] = None
+    external_teacher_name: Optional[str] = None
 
 class SolveRequest(BaseModel):
     teachers: List[TeacherDTO]
@@ -81,6 +86,11 @@ class ScheduleEntryDTO(BaseModel):
     end_period: int
     duration: int
     active_blocks: List[int]
+    is_pinned: bool = False
+    fixed_day: Optional[int] = None
+    fixed_start_period: Optional[int] = None
+    fixed_room_id: Optional[str] = None
+    external_teacher_name: Optional[str] = None
 
 class SolveResponse(BaseModel):
     status: str
@@ -124,4 +134,11 @@ class SwapLessonsResponse(BaseModel):
     message: str
     conflicts: List[str] = Field(default_factory=list)
     updated_schedule: List[ScheduleEntryDTO] = Field(default_factory=list)
+
+class PinAssignmentRequest(BaseModel):
+    is_pinned: bool
+    fixed_day: Optional[int] = None
+    fixed_start_period: Optional[int] = None
+    fixed_room_id: Optional[str] = None
+    external_teacher_name: Optional[str] = None
 

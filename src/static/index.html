@@ -2281,7 +2281,12 @@
       tbody.innerHTML = fullDataManagerData.groups.map(g => `
         <tr class="border-b border-slate-200 hover:bg-slate-50">
           <td class="py-2 px-3 font-mono font-bold text-slate-700">${g.id}</td>
-          <td class="py-2 px-3 font-bold text-slate-800">${g.name}</td>
+          <td class="py-2 px-3 font-bold text-slate-800">
+            <div class="flex items-center flex-wrap gap-1">
+              <span>${g.name}</span>
+              ${g.is_internship ? '<span class="px-2 py-0.5 bg-amber-100 text-amber-900 border border-amber-300 rounded text-[11px] font-bold inline-flex items-center gap-1 shadow-xs">🏢 ฝึกงานสถานประกอบการ (ทฤษฎีหลัง 18:00)</span>' : ''}
+            </div>
+          </td>
           <td class="py-2 px-3">
             <span class="px-2 py-0.5 rounded text-[11px] font-bold ${g.level === 'VOC_CERT' ? 'bg-blue-100 text-blue-800 border border-blue-200' : 'bg-purple-100 text-purple-800 border border-purple-200'}">
               ${g.level === 'VOC_CERT' ? 'ปวช. (18 สัปดาห์)' : 'ปวส. (15 สัปดาห์)'}
@@ -2392,6 +2397,7 @@
       const name = document.getElementById('newGroupName').value.trim();
       const level = document.getElementById('newGroupLevel').value;
       const student_count = parseInt(document.getElementById('newGroupCount').value);
+      const is_internship = document.getElementById('newGroupIsInternship') ? document.getElementById('newGroupIsInternship').checked : false;
 
       if (!name) return alert("กรุณาระบุชื่อกลุ่มเรียน");
 
@@ -2399,12 +2405,15 @@
         const res = await fetch('/api/groups', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id: id || undefined, name, level, student_count })
+          body: JSON.stringify({ id: id || undefined, name, level, student_count, is_internship })
         });
         const data = await res.json();
         if (res.ok && data.is_success) {
           document.getElementById('newGroupId').value = '';
           document.getElementById('newGroupName').value = '';
+          if (document.getElementById('newGroupIsInternship')) {
+            document.getElementById('newGroupIsInternship').checked = false;
+          }
           await refreshDataManagerData();
         } else {
           alert("ไม่สามารถเพิ่มกลุ่มได้: " + (data.detail || "ข้อผิดพลาด"));
@@ -2738,6 +2747,9 @@
       document.getElementById('editGroupName').value = g.name || '';
       document.getElementById('editGroupLevel').value = g.level || 'VOC_CERT';
       document.getElementById('editGroupCount').value = g.student_count || 20;
+      if (document.getElementById('editGroupIsInternship')) {
+        document.getElementById('editGroupIsInternship').checked = !!g.is_internship;
+      }
 
       document.getElementById('editGroupSection').classList.remove('hidden');
       document.getElementById('editTeacherSection').classList.add('hidden');
@@ -2882,11 +2894,12 @@
           const name = document.getElementById('editGroupName').value.trim();
           const level = document.getElementById('editGroupLevel').value;
           const student_count = parseInt(document.getElementById('editGroupCount').value) || 20;
+          const is_internship = document.getElementById('editGroupIsInternship') ? document.getElementById('editGroupIsInternship').checked : false;
           if (!name) {
             alert('กรุณาระบุชื่อกลุ่มเรียน');
             return;
           }
-          body = { name, level, student_count, pvs_18_weeks: (level === 'VOC_CERT') };
+          body = { name, level, student_count, is_internship, pvs_18_weeks: (level === 'VOC_CERT') };
         } else if (type === 'teacher') {
           url = `/api/teachers/${id}`;
           const name = document.getElementById('editTeacherName').value.trim();
@@ -3079,6 +3092,15 @@
                 <button type="submit" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded text-xs font-display transition self-end">
                   + เพิ่ม
                 </button>
+              </div>
+              <div class="sm:col-span-4 bg-amber-50/80 border border-amber-200 rounded p-2.5 mt-1">
+                <label class="flex items-center gap-2 cursor-pointer select-none text-xs text-slate-700">
+                  <input id="newGroupIsInternship" type="checkbox" class="w-4 h-4 text-amber-600 rounded border-slate-300 focus:ring-amber-500">
+                  <span class="inline-flex items-center gap-1.5 font-medium">
+                    <span class="font-bold text-amber-900">🏢 ออกฝึกงานในสถานประกอบการ / ทวิภาคี</span>
+                    <span class="text-slate-600">(รายวิชาทฤษฎีจัดหลัง 18.00 น. ส่วนภาคปฏิบัติสามารถจัดกลางวันได้)</span>
+                  </span>
+                </label>
               </div>
             </form>
           </div>
@@ -3384,6 +3406,15 @@
           <div>
             <label class="block text-slate-700 font-bold mb-1">จำนวนนักเรียน (คน)</label>
             <input type="number" id="editGroupCount" min="1" max="100" class="w-full border border-slate-300 rounded px-3 py-2">
+          </div>
+          <div class="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+            <label class="flex items-start gap-2.5 cursor-pointer select-none">
+              <input type="checkbox" id="editGroupIsInternship" class="mt-0.5 w-4 h-4 text-amber-600 rounded border-slate-300 focus:ring-amber-500">
+              <div class="text-xs">
+                <span class="font-bold text-amber-900 block mb-0.5">🏢 นักศึกษาออกฝึกงานในสถานประกอบการ / ทวิภาคี</span>
+                <span class="text-amber-800 leading-relaxed block">รายวิชาทฤษฎี (ออนไลน์/ค่ำ) จะถูกจัดลงช่วงหลัง 18:00 น. (คาบ 11–12) ส่วนภาคปฏิบัติสามารถจัดลงช่วงเวลากลางวันได้ตามปกติ</span>
+              </div>
+            </label>
           </div>
         </div>
 

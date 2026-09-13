@@ -51,6 +51,7 @@ class StudentGroup:
     level: EducationLevel
     student_count: int
     pvs_18_weeks: bool = True         # โหมดเกลี่ย ปวส. เต็ม 18 สัปดาห์ (V.2 Challenge)
+    is_internship: bool = False       # นักศึกษาออกฝึกงานในสถานประกอบการ (ทวิภาคี / ทฤษฎีจัดหลัง 18.00 น.)
     active_blocks: List[int] = field(init=False)
 
     def __post_init__(self):

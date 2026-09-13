@@ -32,9 +32,23 @@ def validate_move(
     if target_start_period < 1 or target_end_period > 12:
         conflicts.append(f"ช่วงคาบเรียน ({target_start_period}–{target_end_period}) อยู่นอกช่วงเวลา 1–12")
 
-    # คาบ 1-10 คือเวลาปกติ (08:00 - 18:00), คาบ 11-12 คือช่วงค่ำ
-    if target_end_period > 10:
-        warnings.append(f"วิชานี้จะสิ้นสุดที่คาบที่ {target_end_period} (หลัง 18:00 น. ช่วงค่ำ)")
+    # ตรวจสอบกลุ่มฝึกงานสถานประกอบการ / ทวิภาคี (ทฤษฎีต้องจัดหลัง 18:00 น. คาบ 11-12)
+    g1 = groups_map.get(moving_lesson["primary_group_id"])
+    g2 = groups_map.get(moving_lesson.get("secondary_group_id")) if moving_lesson.get("secondary_group_id") else None
+    is_internship = (getattr(g1, "is_internship", False) if g1 else False) or (getattr(g2, "is_internship", False) if g2 else False)
+    if not is_internship and isinstance(g1, dict):
+        is_internship = g1.get("is_internship", False) or (g2.get("is_internship", False) if isinstance(g2, dict) else False)
+
+    course_type_str = str(moving_lesson.get("course_type", "")).lower()
+    is_theory = ("theory" in course_type_str)
+
+    if is_internship and is_theory:
+        if target_start_period < 11:
+            warnings.append("กลุ่มผู้เรียนออกฝึกงานในสถานประกอบการ: รายวิชาทฤษฎีต้องจัดหลัง 18:00 น. (คาบ 11–12)")
+    else:
+        # คาบ 1-10 คือเวลาปกติ (08:00 - 18:00), คาบ 11-12 คือช่วงค่ำ
+        if target_end_period > 10:
+            warnings.append(f"วิชานี้จะสิ้นสุดที่คาบที่ {target_end_period} (หลัง 18:00 น. ช่วงค่ำ สำหรับกลุ่มเรียนปกติ)")
 
     # 3. ตรวจสอบคาบพักกลางวัน (คาบที่ 5: 12:00 - 13:00)
     if target_start_period <= 5 <= target_end_period:

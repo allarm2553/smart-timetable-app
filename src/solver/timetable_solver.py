@@ -49,6 +49,11 @@ class TimetableSolver:
             duration = a.course.periods_per_session
             valid_start_periods = self.periods_per_day - duration + 1
 
+            primary_grp = self.groups[a.primary_group_id]
+            secondary_grp = self.groups.get(a.secondary_group_id)
+            is_internship_grp = getattr(primary_grp, "is_internship", False) or (secondary_grp and getattr(secondary_grp, "is_internship", False))
+            is_theory = (a.course.course_type == CourseType.THEORY)
+
             # ตัวแปรเวลาเริ่มต้น (day, start_period)
             start_vars = []
             for d in range(self.days):
@@ -58,10 +63,15 @@ class TimetableSolver:
 
                     # ห้ามวิชาใดๆ ทับคาบพักกลางวัน (index 4: 12:00-13:00)
                     overlaps_lunch = (p <= self.lunch_period < p + duration)
-                    # จำกัดเวลาเรียนปกติให้อยู่ในช่วงคาบ 1-10 (08:00 - 18:00)
-                    is_within_daytime = (p + duration <= 10)
 
-                    if not overlaps_lunch and is_within_daytime:
+                    if is_internship_grp and is_theory:
+                        # กลุ่มฝึกงานในสถานประกอบการ/ทวิภาคี: ทฤษฎีต้องจัดหลัง 18:00 น. (คาบ 11-12 index 10-11)
+                        is_valid_time = (p >= 10 and p + duration <= self.periods_per_day)
+                    else:
+                        # กลุ่มปกติ หรือ ภาคปฏิบัติของกลุ่มฝึกงาน: จัดเวลากลางวัน คาบ 1-10 (08:00 - 18:00) ไม่ทับพักเที่ยง
+                        is_valid_time = (not overlaps_lunch and p + duration <= 10)
+
+                    if is_valid_time:
                         start_vars.append(var)
                     else:
                         self.model.Add(var == 0)
@@ -270,22 +280,28 @@ class TimetableSolver:
 
     def _add_soft_preferences(self):
         """กำหนด Objective Function:
-        1. พยายามหลีกเลี่ยงคาบแรกเช้าตรู่หรือคาบเย็นถ้าไม่จำเป็น
-        2. พยายามจัดวิชาที่มีชั่วโมงยาวให้เริ่มช่วงต้นคาบ (เช่น คาบ 0 หรือ คาบ 4 หลังพักเที่ยง)
+        1. พยายามหลีกเลี่ยงคาบแรกเช้าตรู่หรือคาบเย็นถ้าไม่จำเป็น (สำหรับวิชาปกติ)
+        2. พยายามจัดวิชาที่มีชั่วโมงยาวให้เริ่มช่วงต้นคาบ (เช่น คาบ 0 หรือ คาบ 5 หลังพักเที่ยง)
         """
         penalty_terms = []
         for a_id, a in self.assignments.items():
+            primary_grp = self.groups[a.primary_group_id]
+            secondary_grp = self.groups.get(a.secondary_group_id)
+            is_internship_grp = getattr(primary_grp, "is_internship", False) or (secondary_grp and getattr(secondary_grp, "is_internship", False))
+            is_theory = (a.course.course_type == CourseType.THEORY)
+
             duration = a.course.periods_per_session
             valid_start_periods = self.periods_per_day - duration + 1
             for d in range(self.days):
                 for p in range(valid_start_periods):
                     cost = 0
-                    # ชอบให้วิชาปฏิบัติยาวเริ่มที่คาบ 1 (p=0) หรือ คาบ 2 (p=1) หรือ บ่ายคาบ 6 (p=5)
-                    if duration >= 3 and p not in (0, 1, 5):
-                        cost += 3
-                    # หลีกเลี่ยงคาบเย็นหลัง 17:00 (p >= 8)
-                    if p >= 8:
-                        cost += 6
+                    if not (is_internship_grp and is_theory):
+                        # ชอบให้วิชาปฏิบัติยาวเริ่มที่คาบ 1 (p=0) หรือ คาบ 2 (p=1) หรือ บ่ายคาบ 6 (p=5)
+                        if duration >= 3 and p not in (0, 1, 5):
+                            cost += 3
+                        # หลีกเลี่ยงคาบเย็นหลัง 17:00 (p >= 8) สำหรับวิชาปกติ
+                        if p >= 8:
+                            cost += 6
                     if cost > 0:
                         penalty_terms.append(self.starts[a_id, d, p] * cost)
 

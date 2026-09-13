@@ -24,6 +24,7 @@ class StudentGroupDTO(BaseModel):
     level: EducationLevel
     student_count: int
     pvs_18_weeks: bool = True
+    is_internship: bool = False
 
 class CourseDTO(BaseModel):
     id: str

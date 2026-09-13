@@ -97,7 +97,8 @@ class TimetableDataManager:
                 "name": g.name,
                 "level": g.level.value,
                 "student_count": g.student_count,
-                "pvs_18_weeks": getattr(g, "pvs_18_weeks", True)
+                "pvs_18_weeks": getattr(g, "pvs_18_weeks", True),
+                "is_internship": getattr(g, "is_internship", False)
             } for g in dataset["groups"]
         ]
         self.courses = {
@@ -264,7 +265,8 @@ class TimetableDataManager:
             "name": group_data["name"],
             "level": group_data.get("level", EducationLevel.VOC_CERT.value),
             "student_count": int(group_data.get("student_count", 20)),
-            "pvs_18_weeks": bool(group_data.get("pvs_18_weeks", True))
+            "pvs_18_weeks": bool(group_data.get("pvs_18_weeks", True)),
+            "is_internship": bool(group_data.get("is_internship", False))
         }
         self.groups.append(new_group)
         self._save()
@@ -290,6 +292,8 @@ class TimetableDataManager:
                     g["student_count"] = int(data["student_count"])
                 if "pvs_18_weeks" in data:
                     g["pvs_18_weeks"] = bool(data["pvs_18_weeks"])
+                if "is_internship" in data:
+                    g["is_internship"] = bool(data["is_internship"])
                 self._save()
                 return g
         raise ValueError(f"ไม่พบกลุ่มเรียนรหัส '{group_id}'")
@@ -405,7 +409,8 @@ class TimetableDataManager:
                 name=g["name"],
                 level=EducationLevel(g["level"]),
                 student_count=g["student_count"],
-                pvs_18_weeks=g.get("pvs_18_weeks", True)
+                pvs_18_weeks=g.get("pvs_18_weeks", True),
+                is_internship=g.get("is_internship", False)
             ) for g in self.groups
         ]
         courses_dict = {

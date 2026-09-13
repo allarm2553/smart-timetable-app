@@ -33,7 +33,7 @@ def get_benchmark_dataset():
         StudentGroup(id="G_CHO_1_2", name="ชอ.1/2", level=EducationLevel.VOC_CERT, student_count=20),
         StudentGroup(id="G_CHO_1_3", name="ชอ.1/3", level=EducationLevel.VOC_CERT, student_count=19),
         StudentGroup(id="G_CHO_3_3", name="ชอ.3/3", level=EducationLevel.VOC_CERT, student_count=20),
-        StudentGroup(id="G_PVS_1", name="ชอ.1/1 (ปวส.)", level=EducationLevel.HIGH_VOC_CERT, student_count=25),
+        StudentGroup(id="G_PVS_1", name="ชอ.4/1 (ปวส.)", level=EducationLevel.HIGH_VOC_CERT, student_count=25),
     ]
 
     # 4. รายวิชา (รหัสวิชาตรงตามรูปแบบมาตรฐานอาชีวศึกษา)

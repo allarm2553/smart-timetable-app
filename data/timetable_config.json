@@ -185,7 +185,7 @@
     },
     {
       "id": "G_PVS_1",
-      "name": "ชอ.1/1 (ปวส.1 ทวิภาคี)",
+      "name": "ชอ.4/1 (ปวส.1 ทวิภาคี)",
       "level": "HIGH_VOC_CERT",
       "student_count": 20,
       "pvs_18_weeks": true,
@@ -193,7 +193,7 @@
     },
     {
       "id": "G_PVS_M6_1",
-      "name": "ชอ.1/2 (ปวส.1 ม.6 ทวิ)",
+      "name": "ชอ.4/2 (ปวส.1 ม.6 ทวิ)",
       "level": "HIGH_VOC_CERT",
       "student_count": 20,
       "pvs_18_weeks": true,
@@ -225,7 +225,7 @@
     },
     {
       "id": "G_PVS_2_1",
-      "name": "ชอ.2/1 (ปวส.2 ทวิ ฝึกงาน)",
+      "name": "ชอ.5/1 (ปวส.2 ทวิ ฝึกงาน)",
       "level": "HIGH_VOC_CERT",
       "student_count": 20,
       "pvs_18_weeks": true,
@@ -233,7 +233,7 @@
     },
     {
       "id": "G_PVS_M6_2_1",
-      "name": "ชอ.2/2 (ปวส.2 ม.6 ทวิ ฝึกงาน)",
+      "name": "ชอ.5/2 (ปวส.2 ม.6 ทวิ ฝึกงาน)",
       "level": "HIGH_VOC_CERT",
       "student_count": 20,
       "pvs_18_weeks": true,

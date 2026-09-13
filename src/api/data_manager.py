@@ -78,7 +78,9 @@ class TimetableDataManager:
                 "max_periods_per_day": t.max_periods_per_day,
                 "unavailable_slots": list(t.unavailable_slots),
                 "is_head": getattr(t, "is_head", False),
-                "max_periods_per_week": getattr(t, "max_periods_per_week", 28 if getattr(t, "is_head", False) else 34)
+                "max_periods_per_week": getattr(t, "max_periods_per_week", 28 if getattr(t, "is_head", False) else 34),
+                "qualification": getattr(t, "qualification", ""),
+                "special_duty": getattr(t, "special_duty", "")
             } for t in dataset["teachers"]
         ]
         self.rooms = [
@@ -171,7 +173,9 @@ class TimetableDataManager:
             "max_periods_per_day": teacher_data.get("max_periods_per_day", 6),
             "unavailable_slots": teacher_data.get("unavailable_slots", []),
             "is_head": is_head,
-            "max_periods_per_week": min(max_week, 35)
+            "max_periods_per_week": min(max_week, 35),
+            "qualification": str(teacher_data.get("qualification", "")).strip(),
+            "special_duty": str(teacher_data.get("special_duty", "")).strip()
         }
         self.teachers.append(new_teacher)
         self._save()
@@ -198,6 +202,10 @@ class TimetableDataManager:
                     t["max_periods_per_day"] = int(data["max_periods_per_day"])
                 if "max_periods_per_week" in data:
                     t["max_periods_per_week"] = min(int(data["max_periods_per_week"]), 35)
+                if "qualification" in data:
+                    t["qualification"] = str(data["qualification"]).strip()
+                if "special_duty" in data:
+                    t["special_duty"] = str(data["special_duty"]).strip()
                 self._save()
                 return t
         raise ValueError(f"ไม่พบครูผู้สอนรหัส '{teacher_id}'")
@@ -378,7 +386,9 @@ class TimetableDataManager:
                 max_periods_per_day=t.get("max_periods_per_day", 6),
                 unavailable_slots=set(tuple(x) for x in t.get("unavailable_slots", [])),
                 is_head=t.get("is_head", False),
-                max_periods_per_week=t.get("max_periods_per_week", 28 if t.get("is_head") else 34)
+                max_periods_per_week=t.get("max_periods_per_week", 28 if t.get("is_head") else 34),
+                qualification=t.get("qualification", ""),
+                special_duty=t.get("special_duty", "")
             ) for t in self.teachers
         ]
         rooms = [

@@ -9,6 +9,8 @@ class TeacherDTO(BaseModel):
     unavailable_slots: List[Tuple[int, int]] = Field(default_factory=list)
     is_head: bool = False
     max_periods_per_week: int = 34
+    qualification: str = ""
+    special_duty: str = ""
 
 class RoomDTO(BaseModel):
     id: str

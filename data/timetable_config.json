@@ -6,7 +6,9 @@
       "max_periods_per_day": 6,
       "unavailable_slots": [],
       "is_head": false,
-      "max_periods_per_week": 34
+      "max_periods_per_week": 34,
+      "qualification": "",
+      "special_duty": ""
     },
     {
       "id": "T_PO",
@@ -14,7 +16,9 @@
       "max_periods_per_day": 6,
       "unavailable_slots": [],
       "is_head": false,
-      "max_periods_per_week": 34
+      "max_periods_per_week": 34,
+      "qualification": "",
+      "special_duty": ""
     },
     {
       "id": "T_JIRA",
@@ -22,7 +26,9 @@
       "max_periods_per_day": 6,
       "unavailable_slots": [],
       "is_head": false,
-      "max_periods_per_week": 34
+      "max_periods_per_week": 34,
+      "qualification": "",
+      "special_duty": ""
     },
     {
       "id": "T_ANU",
@@ -30,7 +36,9 @@
       "max_periods_per_day": 6,
       "unavailable_slots": [],
       "is_head": false,
-      "max_periods_per_week": 34
+      "max_periods_per_week": 34,
+      "qualification": "",
+      "special_duty": ""
     },
     {
       "id": "T_CHOO",
@@ -38,7 +46,9 @@
       "max_periods_per_day": 6,
       "unavailable_slots": [],
       "is_head": false,
-      "max_periods_per_week": 34
+      "max_periods_per_week": 34,
+      "qualification": "",
+      "special_duty": ""
     },
     {
       "id": "T_PAT",
@@ -46,7 +56,9 @@
       "max_periods_per_day": 6,
       "unavailable_slots": [],
       "is_head": false,
-      "max_periods_per_week": 34
+      "max_periods_per_week": 34,
+      "qualification": "",
+      "special_duty": ""
     },
     {
       "id": "T_NOPA",
@@ -54,7 +66,9 @@
       "max_periods_per_day": 6,
       "unavailable_slots": [],
       "is_head": false,
-      "max_periods_per_week": 34
+      "max_periods_per_week": 34,
+      "qualification": "",
+      "special_duty": ""
     },
     {
       "id": "T_THOD",
@@ -62,7 +76,9 @@
       "max_periods_per_day": 6,
       "unavailable_slots": [],
       "is_head": false,
-      "max_periods_per_week": 34
+      "max_periods_per_week": 34,
+      "qualification": "",
+      "special_duty": ""
     },
     {
       "id": "T_THONG",
@@ -70,7 +86,9 @@
       "max_periods_per_day": 6,
       "unavailable_slots": [],
       "is_head": false,
-      "max_periods_per_week": 34
+      "max_periods_per_week": 34,
+      "qualification": "",
+      "special_duty": ""
     }
   ],
   "rooms": [

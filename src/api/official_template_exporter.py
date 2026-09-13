@@ -132,8 +132,8 @@ class OfficialTemplateExporter:
         ws["B6"] = "1/2569"
         ws["B7"] = "อิเล็กทรอนิกส์"
         ws["B8"] = t_name
-        ws["B9"] = "ครุศาสตร์อุตสาหกรรมมหาบัณฑิต"
-        ws["B10"] = "หัวหน้างาน/หัวหน้าแผนก" if teacher.get("is_head") else "ครูผู้สอน"
+        ws["B9"] = teacher.get("qualification") or "ครุศาสตร์อุตสาหกรรมมหาบัณฑิต"
+        ws["B10"] = teacher.get("special_duty") or ("หัวหน้างาน/หัวหน้าแผนก" if teacher.get("is_head") else "ครูผู้สอน")
         block_idx = max(0, min(block - 1, len(self.BLOCK_LABELS) - 1))
         ws["AG1"] = self.BLOCK_LABELS[block_idx]
 

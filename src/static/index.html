@@ -2310,23 +2310,29 @@
         const lockedCount = (t.unavailable_slots || []).length;
         return `
           <tr class="border-b border-slate-200 hover:bg-slate-50">
-            <td class="py-2 px-3 font-mono font-bold text-slate-700">${t.id}</td>
-            <td class="py-2 px-3 font-bold text-slate-800">
-              ${t.name}
-              ${t.is_head ? '<span class="ml-1.5 px-1.5 py-0.5 bg-purple-100 text-purple-800 text-[10px] font-bold rounded">👑 หัวหน้างาน (≤28)</span>' : '<span class="ml-1.5 px-1.5 py-0.5 bg-slate-100 text-slate-700 text-[10px] font-semibold rounded">ครูทั่วไป (≤34)</span>'}
+            <td class="py-2.5 px-3 font-mono font-bold text-slate-700">${t.id}</td>
+            <td class="py-2.5 px-3">
+              <div class="font-bold text-slate-800 flex items-center flex-wrap gap-1">
+                <span>${t.name}</span>
+                ${t.is_head ? '<span class="ml-1.5 px-1.5 py-0.5 bg-purple-100 text-purple-800 text-[10px] font-bold rounded">👑 หัวหน้างาน (≤28)</span>' : '<span class="ml-1.5 px-1.5 py-0.5 bg-slate-100 text-slate-700 text-[10px] font-semibold rounded">ครูทั่วไป (≤34)</span>'}
+              </div>
+              <div class="text-[11px] text-slate-500 mt-1 flex flex-wrap gap-x-2 gap-y-0.5 items-center">
+                ${t.qualification ? `<span class="inline-flex items-center text-indigo-700 font-medium bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100 text-[10.5px]"><span class="mr-1">🎓</span>${t.qualification}</span>` : '<span class="text-slate-400 italic text-[10px]">- ไม่ได้ระบุวุฒิ -</span>'}
+                ${t.special_duty ? `<span class="inline-flex items-center text-teal-800 font-medium bg-teal-50 px-1.5 py-0.5 rounded border border-teal-200 text-[10.5px]"><span class="mr-1">💼</span>${t.special_duty}</span>` : ''}
+              </div>
             </td>
-            <td class="py-2 px-3 text-xs">
+            <td class="py-2.5 px-3 text-xs">
               <span class="font-bold text-slate-700">${t.max_periods_per_day}</span> คาบ/วัน 
               <span class="text-slate-400 text-[11px]">(สัปดาห์ละไม่เกิน ${t.max_periods_per_week || (t.is_head ? 28 : 34)} คาบ)</span>
             </td>
-            <td class="py-2 px-3">
+            <td class="py-2.5 px-3">
               <span class="px-2 py-0.5 rounded text-[11px] font-bold ${
                 lockedCount > 0 ? 'bg-amber-100 text-amber-800 border border-amber-300' : 'bg-emerald-100 text-emerald-800'
               }">
                 ${lockedCount > 0 ? '🔒 งดสอน ' + lockedCount + ' คาบ' : '✓ ว่างทุกช่วง'}
               </span>
             </td>
-            <td class="py-2 px-3 text-right">
+            <td class="py-2.5 px-3 text-right">
               <div class="flex items-center justify-end space-x-1.5">
                 <button onclick="openTeacherSlotsModal('${t.id}')" class="px-2.5 py-1 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold rounded font-display transition flex items-center space-x-1 shadow-xs" title="กำหนดเวลาที่ไม่สะดวกสอน">
                   <i data-lucide="clock" class="w-3.5 h-3.5"></i>
@@ -2423,6 +2429,8 @@
       e.preventDefault();
       const id = document.getElementById('newTeacherId').value.trim();
       const name = document.getElementById('newTeacherName').value.trim();
+      const qualification = document.getElementById('newTeacherQualification')?.value.trim() || '';
+      const special_duty = document.getElementById('newTeacherSpecialDuty')?.value.trim() || '';
       const max_periods = parseInt(document.getElementById('newTeacherMax').value) || 6;
       const is_head = document.getElementById('newTeacherIsHead').value === 'true';
       const max_periods_week = is_head ? 28 : 34;
@@ -2438,13 +2446,17 @@
             name, 
             max_periods_per_day: max_periods,
             is_head,
-            max_periods_per_week: max_periods_week
+            max_periods_per_week: max_periods_week,
+            qualification,
+            special_duty
           })
         });
         const data = await res.json();
         if (res.ok && data.is_success) {
           document.getElementById('newTeacherId').value = '';
           document.getElementById('newTeacherName').value = '';
+          if (document.getElementById('newTeacherQualification')) document.getElementById('newTeacherQualification').value = '';
+          if (document.getElementById('newTeacherSpecialDuty')) document.getElementById('newTeacherSpecialDuty').value = '';
           await refreshDataManagerData();
         } else {
           alert("ไม่สามารถเพิ่มครูได้: " + (data.detail || "ข้อผิดพลาด"));
@@ -2748,6 +2760,8 @@
 
       document.getElementById('editTeacherId').value = t.id;
       document.getElementById('editTeacherName').value = t.name || '';
+      document.getElementById('editTeacherQualification').value = t.qualification || '';
+      document.getElementById('editTeacherSpecialDuty').value = t.special_duty || '';
       document.getElementById('editTeacherIsHead').value = t.is_head ? 'true' : 'false';
       document.getElementById('editTeacherMaxDay').value = t.max_periods_per_day || 6;
       document.getElementById('editTeacherMaxWeek').value = t.max_periods_per_week || (t.is_head ? 28 : 34);
@@ -2876,6 +2890,8 @@
         } else if (type === 'teacher') {
           url = `/api/teachers/${id}`;
           const name = document.getElementById('editTeacherName').value.trim();
+          const qualification = document.getElementById('editTeacherQualification').value.trim();
+          const special_duty = document.getElementById('editTeacherSpecialDuty').value.trim();
           const is_head = document.getElementById('editTeacherIsHead').value === 'true';
           const max_periods_per_day = parseInt(document.getElementById('editTeacherMaxDay').value) || 6;
           const max_periods_per_week = parseInt(document.getElementById('editTeacherMaxWeek').value) || (is_head ? 28 : 34);
@@ -2883,7 +2899,7 @@
             alert('กรุณาระบุชื่อครูผู้สอน');
             return;
           }
-          body = { name, is_head, max_periods_per_day, max_periods_per_week };
+          body = { name, is_head, max_periods_per_day, max_periods_per_week, qualification, special_duty };
         } else if (type === 'room') {
           url = `/api/rooms/${id}`;
           const name = document.getElementById('editRoomName').value.trim();
@@ -3093,30 +3109,44 @@
               <i data-lucide="plus-circle" class="w-4 h-4 text-blue-600"></i>
               <span>เพิ่มครูผู้สอนใหม่</span>
             </h4>
-            <form onsubmit="handleAddTeacher(event)" class="grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
-              <div>
-                <label class="block text-[11px] font-bold text-slate-600 mb-1">รหัสครู (ID):</label>
-                <input id="newTeacherId" type="text" placeholder="เช่น T_SOMCHAI" class="w-full bg-white border border-slate-300 rounded px-2.5 py-1.5 text-xs font-mono">
+            <form onsubmit="handleAddTeacher(event)" class="space-y-3">
+              <div class="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                <div>
+                  <label class="block text-[11px] font-bold text-slate-600 mb-1">รหัสครู (ID):</label>
+                  <input id="newTeacherId" type="text" placeholder="เช่น T_SOMCHAI" class="w-full bg-white border border-slate-300 rounded px-2.5 py-1.5 text-xs font-mono">
+                </div>
+                <div>
+                  <label class="block text-[11px] font-bold text-slate-600 mb-1">ชื่อ-นามสกุลครู *:</label>
+                  <input id="newTeacherName" type="text" placeholder="เช่น สมชาย ใจดี" required class="w-full bg-white border border-slate-300 rounded px-2.5 py-1.5 text-xs">
+                </div>
+                <div>
+                  <label class="block text-[11px] font-bold text-slate-600 mb-1">วุฒิการศึกษา:</label>
+                  <input id="newTeacherQualification" type="text" placeholder="เช่น ค.อ.บ., วศ.บ., วศ.ม." class="w-full bg-white border border-slate-300 rounded px-2.5 py-1.5 text-xs">
+                </div>
+                <div>
+                  <label class="block text-[11px] font-bold text-slate-600 mb-1">หน้าที่พิเศษ:</label>
+                  <input id="newTeacherSpecialDuty" type="text" placeholder="เช่น หัวหน้าแผนก, งานวัดผล" class="w-full bg-white border border-slate-300 rounded px-2.5 py-1.5 text-xs">
+                </div>
               </div>
-              <div>
-                <label class="block text-[11px] font-bold text-slate-600 mb-1">ชื่อ-นามสกุล:</label>
-                <input id="newTeacherName" type="text" placeholder="เช่น สมชาย ใจดี" required class="w-full bg-white border border-slate-300 rounded px-2.5 py-1.5 text-xs">
-              </div>
-              <div>
-                <label class="block text-[11px] font-bold text-slate-600 mb-1">บทบาท & เพดานสอน:</label>
-                <select id="newTeacherIsHead" class="w-full bg-white border border-slate-300 rounded px-2 py-1.5 text-xs">
-                  <option value="false">ครูทั่วไป (≤ 34 คาบ/สัปดาห์)</option>
-                  <option value="true">👑 หัวหน้างาน (≤ 28 คาบ/สัปดาห์)</option>
-                </select>
-              </div>
-              <div class="flex items-center space-x-2">
-                <div class="flex-1">
+
+              <div class="grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
+                <div class="sm:col-span-2">
+                  <label class="block text-[11px] font-bold text-slate-600 mb-1">บทบาท & เพดานสอน:</label>
+                  <select id="newTeacherIsHead" class="w-full bg-white border border-slate-300 rounded px-2 py-1.5 text-xs">
+                    <option value="false">ครูทั่วไป (เพดานสอนปกติ ≤ 34 คาบ/สัปดาห์)</option>
+                    <option value="true">👑 หัวหน้างาน (เพดานสอนลดหย่อน ≤ 28 คาบ/สัปดาห์)</option>
+                  </select>
+                </div>
+                <div>
                   <label class="block text-[11px] font-bold text-slate-600 mb-1">สูงสุด/วัน:</label>
                   <input id="newTeacherMax" type="number" value="6" min="1" max="10" class="w-full bg-white border border-slate-300 rounded px-2 py-1.5 text-xs">
                 </div>
-                <button type="submit" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded text-xs font-display transition self-end">
-                  + เพิ่ม
-                </button>
+                <div class="flex justify-end">
+                  <button type="submit" class="w-full sm:w-auto px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded text-xs font-display transition flex items-center justify-center space-x-1 shadow-xs">
+                    <i data-lucide="user-plus" class="w-3.5 h-3.5"></i>
+                    <span>+ เพิ่มครูผู้สอน</span>
+                  </button>
+                </div>
               </div>
             </form>
           </div>
@@ -3366,6 +3396,16 @@
           <div>
             <label class="block text-slate-700 font-bold mb-1">ชื่อ-นามสกุล ครูผู้สอน *</label>
             <input type="text" id="editTeacherName" class="w-full border border-slate-300 rounded px-3 py-2 text-slate-800 focus:ring-2 focus:ring-blue-500">
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-slate-700 font-bold mb-1">วุฒิการศึกษา</label>
+              <input type="text" id="editTeacherQualification" placeholder="เช่น ค.อ.บ., วศ.บ., วศ.ม." class="w-full border border-slate-300 rounded px-3 py-2 text-slate-800 focus:ring-2 focus:ring-blue-500">
+            </div>
+            <div>
+              <label class="block text-slate-700 font-bold mb-1">หน้าที่พิเศษ</label>
+              <input type="text" id="editTeacherSpecialDuty" placeholder="เช่น หัวหน้าแผนกวิชา, งานวัดผล" class="w-full border border-slate-300 rounded px-3 py-2 text-slate-800 focus:ring-2 focus:ring-blue-500">
+            </div>
           </div>
           <div>
             <label class="block text-slate-700 font-bold mb-1">บทบาท / เพดานภาระงานสอน</label>

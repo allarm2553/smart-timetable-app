@@ -764,6 +764,8 @@ def process_bulk_import(req: Dict[str, Any]):
     """
     filename = req.get("filename", "upload.csv")
     mode = req.get("mode", "replace")
+    target_group_id = req.get("target_group_id")
+    default_teacher_id = req.get("default_teacher_id")
     
     file_bytes = None
     if "content_base64" in req and req["content_base64"]:
@@ -785,7 +787,9 @@ def process_bulk_import(req: Dict[str, Any]):
             file_bytes=file_bytes,
             filename=filename,
             mode=mode,
-            data_manager=data_manager
+            data_manager=data_manager,
+            target_group_id=target_group_id,
+            default_teacher_id=default_teacher_id
         )
         return result
     except Exception as e:

@@ -1200,6 +1200,27 @@
       
       const statusBox = document.getElementById('importStatusBox');
       if (statusBox) statusBox.className = 'hidden';
+
+      // Populate target group and teacher selectors
+      const grpSel = document.getElementById('importTargetGroupSelect');
+      if (grpSel) {
+        let options = '<option value="">-- ตรวจสอบอัตโนมัติตามชื่อชีท/กลุ่มในไฟล์ --</option>';
+        if (fullDataManagerData?.groups) {
+          options += fullDataManagerData.groups.map(g => `<option value="${g.id}">${g.name} (${g.level === 'VOC_CERT' ? 'ปวช.' : 'ปวส.'})</option>`).join('');
+        }
+        grpSel.innerHTML = options;
+        grpSel.value = '';
+      }
+      const tchSel = document.getElementById('importDefaultTeacherSelect');
+      if (tchSel) {
+        let options = '<option value="">-- ตรวจสอบอัตโนมัติตามไฟล์ / รอมอบหมาย --</option>' +
+          '<option value="T_UNASSIGNED">⚠️ รอมอบหมายครู</option>';
+        if (fullDataManagerData?.teachers) {
+          options += fullDataManagerData.teachers.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
+        }
+        tchSel.innerHTML = options;
+        tchSel.value = '';
+      }
       
       document.getElementById('importModal').classList.remove('hidden');
       lucide.createIcons();
@@ -1232,6 +1253,9 @@
       }
 
       const mode = document.querySelector('input[name="importMode"]:checked')?.value || 'replace';
+      const targetGroupId = document.getElementById('importTargetGroupSelect')?.value || null;
+      const defaultTeacherId = document.getElementById('importDefaultTeacherSelect')?.value || null;
+
       const btn = document.getElementById('btnExecuteImport');
       const origText = btn.innerHTML;
       btn.disabled = true;
@@ -1256,7 +1280,9 @@
           body: JSON.stringify({
             filename: selectedImportFile.name,
             content_base64: dataUrl,
-            mode: mode
+            mode: mode,
+            target_group_id: targetGroupId,
+            default_teacher_id: defaultTeacherId
           })
         });
 
@@ -2703,27 +2729,26 @@
       const teacherMap = {};
       fullDataManagerData.teachers.forEach(t => teacherMap[t.id] = t.name);
 
+      // Populate batch tools dropdowns
+      const batchGrp = document.getElementById('batchGroupSelect');
+      if (batchGrp && fullDataManagerData.groups) {
+        const curVal = batchGrp.value;
+        batchGrp.innerHTML = '<option value="">-- เลือกกลุ่มเรียน --</option>' + 
+          fullDataManagerData.groups.map(g => `<option value="${g.id}" ${g.id === curVal ? 'selected' : ''}>${g.name} (${g.level === 'VOC_CERT' ? 'ปวช.' : 'ปวส.'})</option>`).join('');
+      }
+      const batchTch = document.getElementById('batchTeacherSelect');
+      if (batchTch && fullDataManagerData.teachers) {
+        const curVal = batchTch.value;
+        batchTch.innerHTML = '<option value="">-- เลือกครูผู้สอน --</option>' +
+          `<option value="T_UNASSIGNED" ${curVal === 'T_UNASSIGNED' ? 'selected' : ''}>⚠️ รอมอบหมายครู</option>` +
+          fullDataManagerData.teachers.map(t => `<option value="${t.id}" ${t.id === curVal ? 'selected' : ''}>${t.name}</option>`).join('');
+      }
+
       tbody.innerHTML = fullDataManagerData.assignments.map(a => {
         const c = courseMap[a.course_id];
         const code = c?.code || a.course_id;
         const name = c?.name || '';
         const dur = c?.periods_per_session || 1;
-        let tName = teacherMap[a.teacher_id] || a.teacher_id;
-        let tDisplay = '';
-        if (a.teacher_id === 'T_UNASSIGNED' || tName === '(ยังไม่ระบุครูผู้สอน)') {
-          tDisplay = '<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-300"><span class="text-amber-600">⚠️</span> รอมอบหมายครู</span>';
-        } else {
-          tDisplay = `<span class="font-medium text-slate-800">${tName}</span>`;
-        }
-        if (a.secondary_teacher_id) {
-          const t2Name = teacherMap[a.secondary_teacher_id] || a.secondary_teacher_id;
-          tDisplay += ` / ${t2Name} <span class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-teal-100 text-teal-800 border border-teal-200 ml-1">👥 ครูร่วม</span>`;
-        }
-        let grpName = groupMap[a.primary_group_id] || a.primary_group_id || '-';
-        if (a.secondary_group_id) {
-          const g2Name = groupMap[a.secondary_group_id] || a.secondary_group_id;
-          grpName += ` + ${g2Name} (เรียนรวม)`;
-        }
 
         let typeBadge = '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-800 border border-blue-200">ทฤษฎี</span>';
         if (a.secondary_group_id) {
@@ -2744,20 +2769,53 @@
           typeBadge += ` <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-100 text-indigo-800 border border-indigo-200 ml-1 inline-flex items-center gap-1 shadow-xs" title="ล็อกคาบเรียนตายตัว${tExt}">📌 ${dName} คาบ ${a.fixed_start_period}${rName}</span>`;
         }
 
+        // Group options for dropdown
+        const grpOptions = (fullDataManagerData.groups || []).map(g => {
+          const isSel = (g.id === a.primary_group_id) ? 'selected' : '';
+          const lvl = g.level === 'VOC_CERT' ? 'ปวช.' : 'ปวส.';
+          return `<option value="${g.id}" ${isSel}>${g.name} (${lvl})</option>`;
+        }).join('');
+
+        // Teacher options for dropdown
+        const isUnassigned = (!a.teacher_id || a.teacher_id === 'T_UNASSIGNED' || a.teacher_id === '(ยังไม่ระบุครูผู้สอน)');
+        const tchOptions = [
+          `<option value="T_UNASSIGNED" ${isUnassigned ? 'selected' : ''}>⚠️ รอมอบหมายครู</option>`,
+          ...(fullDataManagerData.teachers || []).map(t => {
+            const isSel = (t.id === a.teacher_id) ? 'selected' : '';
+            return `<option value="${t.id}" ${isSel}>${t.name}</option>`;
+          })
+        ].join('');
+
         return `
-          <tr class="border-b border-slate-200 hover:bg-slate-50">
-            <td class="py-2.5 px-3 font-mono font-bold text-slate-800">${code}</td>
-            <td class="py-2.5 px-3 font-semibold text-slate-900">${name}</td>
+          <tr id="row-ass-${a.id}" class="border-b border-slate-200 hover:bg-slate-50 transition-colors">
+            <td class="py-2.5 px-3 font-mono font-bold text-slate-800 text-xs">${code}</td>
+            <td class="py-2.5 px-3 font-semibold text-slate-900 text-xs">${name}</td>
             <td class="py-2.5 px-3">${typeBadge}</td>
-            <td class="py-2.5 px-3 font-bold text-slate-700">${dur} คาบ</td>
-            <td class="py-2.5 px-3 font-medium text-slate-800">${grpName}</td>
-            <td class="py-2.5 px-3">${tDisplay}</td>
-            <td class="py-2.5 px-3 text-right">
+            <td class="py-2.5 px-3 font-bold text-slate-700 text-xs whitespace-nowrap">${dur} คาบ</td>
+            <td class="py-2.5 px-3">
+              <div class="space-y-1">
+                <select id="sel-grp-${a.id}" onchange="handleInlineAssignmentGroupChange('${a.id}', this.value)"
+                  class="w-full min-w-[150px] max-w-[200px] text-xs font-medium text-slate-800 bg-white border border-slate-300 rounded-md px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-2xs hover:border-slate-400 transition cursor-pointer">
+                  ${grpOptions}
+                </select>
+                ${a.secondary_group_id ? `<div class="text-[10px] text-purple-700 font-medium">+ ${groupMap[a.secondary_group_id] || a.secondary_group_id} (เรียนรวม)</div>` : ''}
+              </div>
+            </td>
+            <td class="py-2.5 px-3">
+              <div class="space-y-1">
+                <select id="sel-tch-${a.id}" onchange="handleInlineAssignmentTeacherChange('${a.id}', this.value)"
+                  class="w-full min-w-[150px] max-w-[200px] text-xs ${isUnassigned ? 'font-bold text-amber-900 bg-amber-50 border-amber-300' : 'font-medium text-slate-800 bg-white border-slate-300'} border rounded-md px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-2xs hover:border-slate-400 transition cursor-pointer">
+                  ${tchOptions}
+                </select>
+                ${a.secondary_teacher_id ? `<div class="text-[10px] text-teal-700 font-medium">👥 ครูร่วม: ${teacherMap[a.secondary_teacher_id] || a.secondary_teacher_id}</div>` : ''}
+              </div>
+            </td>
+            <td class="py-2.5 px-3 text-right whitespace-nowrap">
               <div class="flex items-center justify-end space-x-1.5">
-                <button onclick="openEditCourseModal('${a.id}')" class="text-blue-600 hover:text-blue-800 p-1 hover:bg-blue-50 rounded" title="แก้ไขรายวิชาและผู้สอน">
+                <button onclick="openEditCourseModal('${a.id}')" class="text-blue-600 hover:text-blue-800 p-1.5 hover:bg-blue-50 rounded" title="แก้ไขรายละเอียดเชิงลึก (ห้อง/ล็อกคาบ/ครูร่วม)">
                   <i data-lucide="edit-3" class="w-4 h-4"></i>
                 </button>
-                <button onclick="deleteCourseAssignment('${a.id}')" class="text-red-600 hover:text-red-800 p-1 hover:bg-red-50 rounded" title="ลบวิชานี้">
+                <button onclick="deleteCourseAssignment('${a.id}')" class="text-red-600 hover:text-red-800 p-1.5 hover:bg-red-50 rounded" title="ลบวิชานี้">
                   <i data-lucide="trash-2" class="w-4 h-4"></i>
                 </button>
               </div>
@@ -2766,6 +2824,146 @@
         `;
       }).join('');
       lucide.createIcons();
+    }
+
+    async function handleInlineAssignmentGroupChange(assignmentId, newGroupId) {
+      if (!newGroupId) return;
+      const selEl = document.getElementById(`sel-grp-${assignmentId}`);
+      const origClass = selEl ? selEl.className : '';
+      if (selEl) {
+        selEl.classList.add('border-blue-500', 'bg-blue-50');
+      }
+
+      try {
+        const res = await fetch(`/api/assignments/${assignmentId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ primary_group_id: newGroupId })
+        });
+        const result = await res.json();
+        if (!res.ok) {
+          throw new Error(result.detail || 'บันทึกกลุ่มเรียนไม่สำเร็จ');
+        }
+
+        const a = fullDataManagerData?.assignments?.find(x => x.id === assignmentId);
+        if (a) a.primary_group_id = newGroupId;
+
+        if (selEl) {
+          selEl.className = origClass;
+          selEl.classList.add('border-emerald-500', 'bg-emerald-50', 'text-emerald-900');
+          setTimeout(() => {
+            if (selEl) {
+              selEl.classList.remove('border-emerald-500', 'bg-emerald-50', 'text-emerald-900');
+            }
+          }, 1200);
+        }
+        showToast('✅ อัปเดตกลุ่มเรียนเรียบร้อย', 'success', 2000);
+      } catch (err) {
+        if (selEl) selEl.className = origClass;
+        alert('เกิดข้อผิดพลาดในการเปลี่ยนกลุ่มเรียน: ' + err.message);
+        renderCoursesTab();
+      }
+    }
+
+    async function handleInlineAssignmentTeacherChange(assignmentId, newTeacherId) {
+      if (!newTeacherId) return;
+      const selEl = document.getElementById(`sel-tch-${assignmentId}`);
+      const origClass = selEl ? selEl.className : '';
+      if (selEl) {
+        selEl.classList.add('border-blue-500', 'bg-blue-50');
+      }
+
+      try {
+        const res = await fetch(`/api/assignments/${assignmentId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ teacher_id: newTeacherId })
+        });
+        const result = await res.json();
+        if (!res.ok) {
+          throw new Error(result.detail || 'บันทึกครูผู้สอนไม่สำเร็จ');
+        }
+
+        const a = fullDataManagerData?.assignments?.find(x => x.id === assignmentId);
+        if (a) a.teacher_id = newTeacherId;
+
+        const isUnassigned = (!newTeacherId || newTeacherId === 'T_UNASSIGNED');
+        if (selEl) {
+          selEl.className = `w-full min-w-[150px] max-w-[200px] text-xs ${isUnassigned ? 'font-bold text-amber-900 bg-amber-50 border-amber-300' : 'font-medium text-slate-800 bg-white border-slate-300'} border rounded-md px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-2xs hover:border-slate-400 transition cursor-pointer`;
+          selEl.classList.add('border-emerald-500', 'bg-emerald-50');
+          setTimeout(() => {
+            if (selEl) {
+              selEl.classList.remove('border-emerald-500', 'bg-emerald-50');
+              if (isUnassigned) selEl.classList.add('bg-amber-50', 'border-amber-300');
+            }
+          }, 1200);
+        }
+        showToast('✅ อัปเดตครูผู้สอนเรียบร้อย', 'success', 2000);
+      } catch (err) {
+        if (selEl) selEl.className = origClass;
+        alert('เกิดข้อผิดพลาดในการเปลี่ยนครูผู้สอน: ' + err.message);
+        renderCoursesTab();
+      }
+    }
+
+    async function applyBatchGroupChange() {
+      const select = document.getElementById('batchGroupSelect');
+      const targetGroupId = select ? select.value : '';
+      if (!targetGroupId) return alert('กรุณาเลือกกลุ่มเรียนที่ต้องการเปลี่ยน');
+      if (!fullDataManagerData?.assignments?.length) return alert('ไม่มีรายการวิชาในระบบ');
+
+      const grp = fullDataManagerData.groups.find(g => g.id === targetGroupId);
+      const grpName = grp ? grp.name : targetGroupId;
+      if (!confirm(`ยืนยันการเปลี่ยนกลุ่มเรียนทุกรายวิชา (${fullDataManagerData.assignments.length} วิชา) เป็น "${grpName}" หรือไม่?`)) return;
+
+      let successCount = 0;
+      for (const a of fullDataManagerData.assignments) {
+        try {
+          const res = await fetch(`/api/assignments/${a.id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ primary_group_id: targetGroupId })
+          });
+          if (res.ok) {
+            a.primary_group_id = targetGroupId;
+            successCount++;
+          }
+        } catch (e) {
+          console.error(e);
+        }
+      }
+      renderCoursesTab();
+      showToast(`✅ ปรับเปลี่ยนกลุ่มเรียนทุกวิชาเป็น "${grpName}" สำเร็จ (${successCount} รายการ)`, 'success', 3500);
+    }
+
+    async function applyBatchTeacherChange() {
+      const select = document.getElementById('batchTeacherSelect');
+      const targetTeacherId = select ? select.value : '';
+      if (!targetTeacherId) return alert('กรุณาเลือกครูผู้สอนที่ต้องการเปลี่ยน');
+      if (!fullDataManagerData?.assignments?.length) return alert('ไม่มีรายการวิชาในระบบ');
+
+      const t = fullDataManagerData.teachers.find(tch => tch.id === targetTeacherId);
+      const tName = t ? t.name : (targetTeacherId === 'T_UNASSIGNED' ? 'รอมอบหมายครู' : targetTeacherId);
+      if (!confirm(`ยืนยันการเปลี่ยนครูผู้สอนทุกรายวิชา (${fullDataManagerData.assignments.length} วิชา) เป็น "${tName}" หรือไม่?`)) return;
+
+      let successCount = 0;
+      for (const a of fullDataManagerData.assignments) {
+        try {
+          const res = await fetch(`/api/assignments/${a.id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ teacher_id: targetTeacherId })
+          });
+          if (res.ok) {
+            a.teacher_id = targetTeacherId;
+            successCount++;
+          }
+        } catch (e) {
+          console.error(e);
+        }
+      }
+      renderCoursesTab();
+      showToast(`✅ ปรับเปลี่ยนครูผู้สอนทุกวิชาเป็น "${tName}" สำเร็จ (${successCount} รายการ)`, 'success', 3500);
     }
 
     function populateCourseFormDropdowns() {
@@ -3616,6 +3814,43 @@
 
         <!-- Tab 4: Courses & Assignments Panel -->
         <div id="tab-pane-courses" class="hidden space-y-4">
+          
+          <!-- Quick Batch Tool Bar -->
+          <div class="bg-indigo-50/70 border border-indigo-200 rounded-lg p-3 flex flex-wrap items-center justify-between gap-3 text-xs">
+            <div class="flex items-center space-x-2">
+              <span class="w-6 h-6 rounded bg-indigo-600 text-white flex items-center justify-center font-bold shadow-xs">
+                <i data-lucide="sparkles" class="w-3.5 h-3.5"></i>
+              </span>
+              <div>
+                <span class="font-bold text-slate-800">เครื่องมือปรับกลุ่มเรียนและครูด่วน:</span>
+                <span class="text-slate-500 text-[11px] ml-1 hidden sm:inline">เปลี่ยนทั้งตารางในคลิกเดียว หรือเลือกรายวิชาจาก Dropdown ในตารางด้านล่างได้ทันที</span>
+              </div>
+            </div>
+            <div class="flex flex-wrap items-center gap-2">
+              <div class="flex items-center space-x-1.5">
+                <span class="text-slate-600 font-medium">เปลี่ยนกลุ่มเรียนเป็น:</span>
+                <select id="batchGroupSelect" class="bg-white border border-slate-300 rounded px-2 py-1 text-xs font-medium text-slate-800 focus:ring-1 focus:ring-indigo-500 shadow-2xs">
+                  <option value="">-- เลือกกลุ่มเรียน --</option>
+                </select>
+                <button type="button" onclick="applyBatchGroupChange()" class="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded font-bold transition flex items-center space-x-1 shadow-2xs">
+                  <i data-lucide="check" class="w-3 h-3"></i>
+                  <span>นำไปใช้กับทุกวิชา</span>
+                </button>
+              </div>
+              <div class="h-4 w-px bg-slate-300 hidden md:block"></div>
+              <div class="flex items-center space-x-1.5">
+                <span class="text-slate-600 font-medium">เปลี่ยนครูเป็น:</span>
+                <select id="batchTeacherSelect" class="bg-white border border-slate-300 rounded px-2 py-1 text-xs font-medium text-slate-800 focus:ring-1 focus:ring-indigo-500 shadow-2xs">
+                  <option value="">-- เลือกครูผู้สอน --</option>
+                </select>
+                <button type="button" onclick="applyBatchTeacherChange()" class="px-2.5 py-1 bg-slate-700 hover:bg-slate-800 text-white rounded font-bold transition flex items-center space-x-1 shadow-2xs">
+                  <i data-lucide="check" class="w-3 h-3"></i>
+                  <span>นำไปใช้กับทุกวิชา</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
           <div class="border border-slate-300 rounded-lg overflow-hidden">
             <table class="w-full text-left">
               <thead class="bg-slate-100 border-b border-slate-300 text-slate-700 font-display font-bold">
@@ -3624,8 +3859,8 @@
                   <th class="py-2.5 px-3">ชื่อรายวิชา</th>
                   <th class="py-2.5 px-3">ประเภท</th>
                   <th class="py-2.5 px-3">จำนวนคาบ</th>
-                  <th class="py-2.5 px-3">กลุ่มเรียน</th>
-                  <th class="py-2.5 px-3">ครูผู้สอน</th>
+                  <th class="py-2.5 px-3 min-w-[170px]">กลุ่มผู้เรียน (เลือกได้)</th>
+                  <th class="py-2.5 px-3 min-w-[170px]">ครูผู้สอน (เลือกได้)</th>
                   <th class="py-2.5 px-3 text-right">การจัดการ</th>
                 </tr>
               </thead>
@@ -4072,6 +4307,28 @@
             <div id="fileUploadSelected" class="hidden text-xs font-bold text-emerald-700 flex items-center justify-center space-x-1.5">
               <i data-lucide="file-check" class="w-4 h-4 text-emerald-600"></i>
               <span id="selectedFileName"></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 2.5: Optional Target Group & Teacher Assignment -->
+        <div class="bg-indigo-50/60 border border-indigo-200 rounded-lg p-3 space-y-2.5">
+          <div class="text-xs font-bold text-indigo-900 font-display flex items-center space-x-1.5">
+            <i data-lucide="users" class="w-3.5 h-3.5 text-indigo-600"></i>
+            <span>กำหนดกลุ่มเรียนและครูเริ่มต้น (ระบุเฉพาะเจาะจง หรือ ให้ระบบตรวจหาอัตโนมัติ)</span>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
+            <div>
+              <label class="block text-[11px] font-semibold text-slate-700 mb-1">กลุ่มผู้เรียนเป้าหมาย:</label>
+              <select id="importTargetGroupSelect" class="w-full bg-white border border-slate-300 rounded px-2.5 py-1.5 text-xs font-medium text-slate-800 focus:ring-1 focus:ring-indigo-500 shadow-2xs">
+                <option value="">-- ตรวจสอบอัตโนมัติตามชื่อชีท/กลุ่มในไฟล์ --</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-[11px] font-semibold text-slate-700 mb-1">ครูผู้สอนเริ่มต้น (ถ้าในไฟล์ไม่ระบุ):</label>
+              <select id="importDefaultTeacherSelect" class="w-full bg-white border border-slate-300 rounded px-2.5 py-1.5 text-xs font-medium text-slate-800 focus:ring-1 focus:ring-indigo-500 shadow-2xs">
+                <option value="">-- ตรวจสอบอัตโนมัติตามไฟล์ / รอมอบหมาย --</option>
+              </select>
             </div>
           </div>
         </div>

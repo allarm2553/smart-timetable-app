@@ -318,14 +318,81 @@ def test_theory_practice_course_type():
     data_manager.reset_to_default()
     print("✅ test_theory_practice_course_type passed")
 
+def test_inline_group_and_teacher_assignment():
+    """Verify that assignments can update primary_group_id and teacher_id via API and on bulk import"""
+    data_manager.reset_to_default()
+    all_d = data_manager.get_all_data()
+    ass = all_d["assignments"][0]
+    ass_id = ass["id"]
+
+    # 1. Update primary_group_id
+    up_grp = client.put(f"/api/assignments/{ass_id}", json={"primary_group_id": "G_CHO_1_2"})
+    assert up_grp.status_code == 200
+    assert up_grp.json()["is_success"] is True
+    
+    # 2. Update teacher_id to another teacher
+    teachers = all_d["teachers"]
+    other_t = [t["id"] for t in teachers if t["id"] != ass["teacher_id"]][0]
+    up_tch = client.put(f"/api/assignments/{ass_id}", json={"teacher_id": other_t})
+    assert up_tch.status_code == 200
+    
+    # Verify in data_manager
+    check_d = data_manager.get_all_data()
+    updated_ass = next(a for a in check_d["assignments"] if a["id"] == ass_id)
+    assert updated_ass["primary_group_id"] == "G_CHO_1_2"
+    assert updated_ass["teacher_id"] == other_t
+
+    # 3. Update teacher_id to T_UNASSIGNED
+    up_unassigned = client.put(f"/api/assignments/{ass_id}", json={"teacher_id": "T_UNASSIGNED"})
+    assert up_unassigned.status_code == 200
+    check_d2 = data_manager.get_all_data()
+    updated_ass2 = next(a for a in check_d2["assignments"] if a["id"] == ass_id)
+    assert updated_ass2["teacher_id"] == "T_UNASSIGNED"
+
+    # 4. Test Bulk Import with target_group_id and default_teacher_id
+    csv_content = (
+        "รหัสวิชา,ชื่อวิชา,ท,ป,น\n"
+        "20101-2001,งานขับเคลื่อนยานยนต์,1,3,2\n"
+        "20101-2002,งานเครื่องยนต์แก๊สโซลีน,1,3,2\n"
+    )
+    res_import = client.post("/api/import/process", json={
+        "filename": "curriculum.csv",
+        "csv_text": csv_content,
+        "mode": "replace",
+        "target_group_id": "G_CHO_1_2",
+        "default_teacher_id": other_t
+    })
+    assert res_import.status_code == 200
+    imp_data = res_import.json()
+    assert imp_data["is_success"] is True
+    assert imp_data["imported_count"] == 2
+
+    cur_d = data_manager.get_all_data()
+    for a in cur_d["assignments"]:
+        assert a["primary_group_id"] == "G_CHO_1_2"
+        assert a["teacher_id"] == other_t
+
+    data_manager.reset_to_default()
+    print("✅ test_inline_group_and_teacher_assignment passed")
+
 if __name__ == "__main__":
-    test_is_valid_course_code()
-    test_template_csv()
-    test_api_get_template()
-    test_process_import_append()
-    test_process_import_filters_non_course_rows()
-    test_process_import_vocational_xlsx()
-    test_process_import_curriculum_with_title_and_subheaders()
-    test_process_import_replace_and_solve()
-    test_theory_practice_course_type()
-    print("\n🎉 ALL BULK IMPORTER TESTS PASSED SUCCESSFULLY! 🎉")
+    orig_data = data_manager.get_all_data()
+    try:
+        test_is_valid_course_code()
+        test_template_csv()
+        test_api_get_template()
+        test_process_import_append()
+        test_process_import_filters_non_course_rows()
+        test_process_import_vocational_xlsx()
+        test_process_import_curriculum_with_title_and_subheaders()
+        test_process_import_replace_and_solve()
+        test_theory_practice_course_type()
+        test_inline_group_and_teacher_assignment()
+        print("\n🎉 ALL BULK IMPORTER TESTS PASSED SUCCESSFULLY! 🎉")
+    finally:
+        data_manager.teachers = orig_data["teachers"]
+        data_manager.rooms = orig_data["rooms"]
+        data_manager.groups = orig_data["groups"]
+        data_manager.courses = {c["id"]: c for c in orig_data["courses"]}
+        data_manager.assignments = orig_data["assignments"]
+        data_manager._save()

@@ -49,15 +49,18 @@ class TimetableDataManager:
     def _sanitize_data(self):
         """ล้างความสัมพันธ์กำพร้า (Orphan References) เพื่อป้องกัน Solver ขัดข้อง"""
         valid_group_ids = {g["id"] for g in self.groups}
-        valid_teacher_ids = {t["id"] for t in self.teachers}
+        valid_teacher_ids = {t["id"] for t in self.teachers} | {"T_UNASSIGNED"}
         valid_course_ids = set(self.courses.keys())
         
         clean_assignments = []
         for a in self.assignments:
+            t_id = a.get("teacher_id")
             if (a.get("primary_group_id") in valid_group_ids and
-                a.get("teacher_id") in valid_teacher_ids and
+                (t_id in valid_teacher_ids or not t_id or t_id == "T_UNASSIGNED") and
                 a.get("course_id") in valid_course_ids):
                 
+                if not t_id:
+                    a["teacher_id"] = "T_UNASSIGNED"
                 if a.get("secondary_group_id") and a.get("secondary_group_id") not in valid_group_ids:
                     a["secondary_group_id"] = None
                 if a.get("secondary_teacher_id") and a.get("secondary_teacher_id") not in valid_teacher_ids:
@@ -405,8 +408,8 @@ class TimetableDataManager:
             target_a["primary_group_id"] = data["primary_group_id"]
         if "secondary_group_id" in data:
             target_a["secondary_group_id"] = data["secondary_group_id"] or None
-        if "teacher_id" in data and data["teacher_id"]:
-            target_a["teacher_id"] = data["teacher_id"]
+        if "teacher_id" in data:
+            target_a["teacher_id"] = data["teacher_id"] or "T_UNASSIGNED"
         if "secondary_teacher_id" in data:
             target_a["secondary_teacher_id"] = data["secondary_teacher_id"] or None
         if "is_rotation" in data:

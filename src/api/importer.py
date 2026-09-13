@@ -316,12 +316,16 @@ class BulkDataImporter:
         file_bytes: bytes,
         filename: str,
         mode: str,
-        data_manager: Any
+        data_manager: Any,
+        target_group_id: Optional[str] = None,
+        default_teacher_id: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Processes bulk import of courses and lesson assignments.
         Strictly filters out any row without a valid course code.
         mode: 'replace' | 'append'
+        target_group_id: Optional group ID to force assign all imported courses to this group
+        default_teacher_id: Optional teacher ID to default unassigned courses
         """
         rows = cls.parse_file_to_rows(file_bytes, filename)
         if not rows:
@@ -470,17 +474,22 @@ class BulkDataImporter:
                     teachers.append(new_t)
                     new_teachers_count += 1
             else:
-                unassigned = next((t for t in teachers if t["id"] == "T_UNASSIGNED"), None)
-                if unassigned:
-                    teacher_id = unassigned["id"]
-                elif teachers:
-                    teacher_id = teachers[0]["id"]
+                if default_teacher_id:
+                    teacher_id = default_teacher_id
                 else:
-                    teacher_id = "T_DEFAULT"
+                    unassigned = next((t for t in teachers if t["id"] == "T_UNASSIGNED"), None)
+                    if unassigned:
+                        teacher_id = unassigned["id"]
+                    elif teachers:
+                        teacher_id = teachers[0]["id"]
+                    else:
+                        teacher_id = "T_DEFAULT"
 
             # Match or Create Primary Group
             primary_group_id = ""
-            if primary_group_name:
+            if target_group_id:
+                primary_group_id = target_group_id
+            elif primary_group_name:
                 matched_g = next((g for g in groups if g["name"].strip() == primary_group_name or g["id"] == primary_group_name), None)
                 if matched_g:
                     primary_group_id = matched_g["id"]

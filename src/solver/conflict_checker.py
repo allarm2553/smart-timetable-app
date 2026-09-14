@@ -59,39 +59,41 @@ def validate_move(
         conflicts.append("ไม่สามารถจัดทับคาบที่ 5 (12:00–13:00 น.) ได้ เนื่องจากเป็นเวลาพักกลางวัน")
 
     # 3.01 ตรวจสอบเงื่อนไขล็อกคาบเรียนวันพุธ คาบ 7-8 (ลูกเสือ ปวช.1 / กิจกรรม ปวช.2, 3, ปวส.4)
-    c_name = moving_lesson.get("course_name", "")
-    c_code = moving_lesson.get("course_code", "")
-    is_scout = is_scout_assignment(c_name, c_code)
-    is_act = is_activity_assignment(c_name, c_code)
+    # สำหรับกลุ่มออกฝึกงานในสถานประกอบการ (is_internship = True): ไม่ต้องล็อกตารางคาบกิจกรรม/ลูกเสือ
+    if not is_internship:
+        c_name = moving_lesson.get("course_name", "")
+        c_code = moving_lesson.get("course_code", "")
+        is_scout = is_scout_assignment(c_name, c_code)
+        is_act = is_activity_assignment(c_name, c_code)
 
-    def _get_grp_cat(grp):
-        if not grp:
-            return "OTHER"
-        if isinstance(grp, dict):
-            return get_group_year_category(grp.get("name", ""), str(grp.get("level", "VOC_CERT")))
-        return get_group_year_category(getattr(grp, "name", ""), str(getattr(grp, "level", "VOC_CERT")))
+        def _get_grp_cat(grp):
+            if not grp:
+                return "OTHER"
+            if isinstance(grp, dict):
+                return get_group_year_category(grp.get("name", ""), str(grp.get("level", "VOC_CERT")))
+            return get_group_year_category(getattr(grp, "name", ""), str(getattr(grp, "level", "VOC_CERT")))
 
-    grp_cats = [_get_grp_cat(g1)]
-    if g2:
-        grp_cats.append(_get_grp_cat(g2))
+        grp_cats = [_get_grp_cat(g1)]
+        if g2:
+            grp_cats.append(_get_grp_cat(g2))
 
-    overlaps_wed_7_8 = (target_day == 2 and max(target_start_period, 7) <= min(target_end_period, 8))
+        overlaps_wed_7_8 = (target_day == 2 and max(target_start_period, 7) <= min(target_end_period, 8))
 
-    for g_cat in grp_cats:
-        if g_cat == "VOC_1":
-            if overlaps_wed_7_8 and not is_scout:
-                conflicts.append("วันพุธ คาบที่ 7–8 สงวนไว้สำหรับวิชาลูกเสือวิสามัญ (ปวช.1) เท่านั้น ไม่อนุญาตให้จัดวิชาเรียนอื่นในช่วงเวลานี้")
-                break
-            if is_scout and not (target_day == 2 and target_start_period == 7 and duration == 2):
-                conflicts.append("วิชาลูกเสือวิสามัญสำหรับ ปวช.1 มีเงื่อนไขล็อกตายตัวในวันพุธ คาบที่ 7–8 เท่านั้น")
-                break
-        elif g_cat in ("VOC_2", "VOC_3", "PVS_4"):
-            if overlaps_wed_7_8 and not is_act:
-                conflicts.append("วันพุธ คาบที่ 7–8 สงวนไว้สำหรับคาบกิจกรรมวิทยาลัย (ปวช.2, 3, ปวส.4) เท่านั้น ไม่อนุญาตให้จัดวิชาเรียนอื่นในช่วงเวลานี้")
-                break
-            if is_act and not (target_day == 2 and target_start_period == 7 and duration == 2):
-                conflicts.append("คาบกิจกรรมวิทยาลัยสำหรับ ปวช.2, 3, ปวส.4 มีเงื่อนไขล็อกตายตัวในวันพุธ คาบที่ 7–8 เท่านั้น")
-                break
+        for g_cat in grp_cats:
+            if g_cat == "VOC_1":
+                if overlaps_wed_7_8 and not is_scout:
+                    conflicts.append("วันพุธ คาบที่ 7–8 สงวนไว้สำหรับวิชาลูกเสือวิสามัญ (ปวช.1) เท่านั้น ไม่อนุญาตให้จัดวิชาเรียนอื่นในช่วงเวลานี้")
+                    break
+                if is_scout and not (target_day == 2 and target_start_period == 7 and duration == 2):
+                    conflicts.append("วิชาลูกเสือวิสามัญสำหรับ ปวช.1 มีเงื่อนไขล็อกตายตัวในวันพุธ คาบที่ 7–8 เท่านั้น")
+                    break
+            elif g_cat in ("VOC_2", "VOC_3", "PVS_4"):
+                if overlaps_wed_7_8 and not is_act:
+                    conflicts.append("วันพุธ คาบที่ 7–8 สงวนไว้สำหรับคาบกิจกรรมวิทยาลัย (ปวช.2, 3, ปวส.4) เท่านั้น ไม่อนุญาตให้จัดวิชาเรียนอื่นในช่วงเวลานี้")
+                    break
+                if is_act and not (target_day == 2 and target_start_period == 7 and duration == 2):
+                    conflicts.append("คาบกิจกรรมวิทยาลัยสำหรับ ปวช.2, 3, ปวส.4 มีเงื่อนไขล็อกตายตัวในวันพุธ คาบที่ 7–8 เท่านั้น")
+                    break
 
     def is_slot_unavail(unavail_obj, d, p):
         if not unavail_obj:

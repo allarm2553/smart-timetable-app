@@ -594,6 +594,10 @@ class TimetableDataManager:
         updated_count = 0
 
         for g in self.groups:
+            # สำหรับกลุ่มออกฝึกงานในสถานประกอบการ: ไม่ต้องล็อกตารางคาบกิจกรรม/ลูกเสือ
+            if g.get("is_internship", False):
+                continue
+
             gid = g["id"]
             gname = g.get("name", "")
             glvl = g.get("level", "VOC_CERT")

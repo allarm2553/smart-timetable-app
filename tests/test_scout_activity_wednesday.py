@@ -182,5 +182,61 @@ class TestScoutActivityWednesday(unittest.TestCase):
         self.assertFalse(is_valid_scout)
         self.assertTrue(any("เงื่อนไขล็อกตายตัวในวันพุธ คาบที่ 7–8" in c for c in confs_scout))
 
+    def test_internship_group_exempt_from_wednesday_activity(self):
+        """ทดสอบว่ากลุ่มออกฝึกงานในสถานประกอบการ (is_internship=True) ได้รับการยกเว้นไม่ต้องล็อกคาบกิจกรรมวันพุธ 7-8"""
+        r1 = Room(id="R1", name="ห้อง 101", room_type=RoomType.CLASSROOM, capacity=40)
+        g_intern = StudentGroup(id="G_INT", name="ปวส.2/2 ทวิภาคี", level=EducationLevel.HIGH_VOC_CERT, student_count=20, is_internship=True)
+        rooms_map = {"R1": r1}
+        groups_map = {"G_INT": g_intern}
+
+        schedule = [
+            {
+                "assignment_id": "THEORY_INT",
+                "course_name": "สัมมนาวิชาชีพ",
+                "course_code": "30000-2005",
+                "course_type": "THEORY",
+                "primary_group_id": "G_INT",
+                "teacher_id": "T1",
+                "teacher_name": "อ. สมคิด",
+                "room_id": "R1",
+                "day": 0,
+                "start_period": 11,
+                "end_period": 12,
+                "duration": 2,
+                "active_blocks": [0, 1, 2, 3, 4, 5]
+            }
+        ]
+
+        # 1. ทดสอบ validate_move: กลุ่มฝึกงานเมื่อย้ายคาบมาวันพุธ คาบ 7-8 ต้องไม่มี Conflict กิจกรรมวันพุธ
+        _, confs, _ = validate_move(
+            schedule=schedule,
+            assignment_id="THEORY_INT",
+            target_day=2,
+            target_start_period=7,
+            target_room_id="R1",
+            rooms_map=rooms_map,
+            groups_map=groups_map
+        )
+        self.assertFalse(any("สงวนไว้สำหรับคาบกิจกรรมวิทยาลัย" in c for c in confs))
+        self.assertFalse(any("สงวนไว้สำหรับวิชาลูกเสือวิสามัญ" in c for c in confs))
+
+        # 2. ทดสอบ Solver: ไม่บังคับล็อกวันพุธ คาบ 7-8 ให้กลุ่มฝึกงาน
+        teachers = [Teacher(id="T1", name="อ. สมชาย")]
+        act_course = Course(id="C_ACT", name="กิจกรรมองค์การวิชาชีพ", code="30000-2001", course_type=CourseType.THEORY, periods_per_session=2)
+        assignment = LessonAssignment(id="A_ACT_INT", course=act_course, primary_group_id="G_INT", teacher_id="T1")
+
+        solver = TimetableSolver(
+            teachers=teachers,
+            rooms=[r1],
+            groups=[g_intern],
+            assignments=[assignment],
+            days=5,
+            periods_per_day=12
+        )
+        # ตรวจสอบว่าใน solver ไม่ได้ถูกล็อกเป็น is_pinned หรือ fixed_day=2 โดยอัตโนมัติ
+        self.assertFalse(assignment.is_pinned, "กลุ่มฝึกงานต้องไม่ถูก auto-pin คาบกิจกรรม")
+        self.assertIsNone(assignment.fixed_day, "กลุ่มฝึกงานต้องไม่มี fixed_day อัตโนมัติ")
+
 if __name__ == "__main__":
     unittest.main()
+

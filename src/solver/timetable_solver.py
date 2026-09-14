@@ -100,8 +100,9 @@ class TimetableSolver:
             lvl_str = primary_grp.level.value if hasattr(primary_grp.level, "value") else str(primary_grp.level)
             grp_cat = get_group_year_category(primary_grp.name, lvl_str)
 
-            is_mandated_scout = (is_scout and grp_cat == "VOC_1")
-            is_mandated_activity = (is_activity and grp_cat in ("VOC_2", "VOC_3", "PVS_4"))
+            # สำหรับกลุ่มออกฝึกงานในสถานประกอบการ: ไม่ต้องล็อกตารางคาบกิจกรรม/ลูกเสือ
+            is_mandated_scout = (is_scout and grp_cat == "VOC_1" and not is_internship_grp)
+            is_mandated_activity = (is_activity and grp_cat in ("VOC_2", "VOC_3", "PVS_4") and not is_internship_grp)
 
             # ตรวจสอบการล็อกคาบเรียนตายตัวล่วงหน้า (Pinned / Pre-assigned Lessons สำหรับวิชาสามัญ)
             is_pinned = getattr(a, "is_pinned", False) or is_mandated_scout or is_mandated_activity
@@ -129,7 +130,7 @@ class TimetableSolver:
                         is_valid_time = (p >= 10 and p + duration <= self.periods_per_day)
                     else:
                         # สำหรับกลุ่มเรียนปกติ: ห้ามจัดวิชาเรียนปกติชนวันพุธ คาบ 7-8 (สงวนไว้สำหรับลูกเสือ/กิจกรรม)
-                        is_group_covered = (grp_cat in ("VOC_1", "VOC_2", "VOC_3", "PVS_4"))
+                        is_group_covered = (grp_cat in ("VOC_1", "VOC_2", "VOC_3", "PVS_4") and not is_internship_grp)
                         if is_group_covered and overlaps_wed_7_8:
                             is_valid_time = False
                         else:

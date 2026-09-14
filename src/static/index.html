@@ -1739,6 +1739,17 @@
       return 'OTHER';
     }
 
+    function isGroupInternshipJs(groupId) {
+      let g = null;
+      if (benchmarkData && benchmarkData.groups) {
+        g = benchmarkData.groups.find(x => x.id === groupId);
+      }
+      if (!g && fullDataManagerData && fullDataManagerData.groups) {
+        g = fullDataManagerData.groups.find(x => x.id === groupId);
+      }
+      return !!(g && g.is_internship);
+    }
+
     function renderTimetable() {
       if (!solveResult || !solveResult.schedule) return;
 
@@ -1897,8 +1908,10 @@
             const covered = activeLessons.some(l => l.day === day.id && p > l.start_period && p < l.start_period + l.duration);
             if (!covered) {
               // ตรวจสอบกรณีวันพุธ คาบ 7-8 สำหรับกลุ่มเรียน (ล็อกคาบลูกเสือ ปวช.1 หรือ กิจกรรม ปวช.2, 3, ปวส.4)
+              // ยกเว้นกลุ่มผู้เรียนที่ออกฝึกงานในสถานประกอบการ (is_internship) ไม่ต้องล็อกคาบกิจกรรม
+              const isIntern = (currentViewMode === 'group') ? isGroupInternshipJs(currentEntityId) : false;
               const grpCat = (currentViewMode === 'group') ? getGroupCategoryJs(currentEntityId) : 'OTHER';
-              if (currentViewMode === 'group' && day.id === 2 && p === 7 && (grpCat === 'VOC_1' || ['VOC_2', 'VOC_3', 'PVS_4'].includes(grpCat))) {
+              if (currentViewMode === 'group' && !isIntern && day.id === 2 && p === 7 && (grpCat === 'VOC_1' || ['VOC_2', 'VOC_3', 'PVS_4'].includes(grpCat))) {
                 const isScout = (grpCat === 'VOC_1');
                 const badgeTitle = isScout ? '🏕️ วิชาลูกเสือวิสามัญ (ปวช.1)' : '🎯 คาบกิจกรรมวิทยาลัย';
                 const badgeSub = isScout ? 'ลูกเสือตามเกณฑ์มาตรฐาน (14:00-16:00)' : 'กิจกรรมองค์การวิชาชีพ/ชมรม (14:00-16:00)';

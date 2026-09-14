@@ -105,10 +105,14 @@ class SplitTheoryPracticeRequest(BaseModel):
     practice_periods: int = 3
     primary_group_id: str
     secondary_group_id: str
+    teaching_mode: str = "CO_TEACHING"  # "CO_TEACHING" (2 อาจารย์) หรือ "SINGLE" (ผู้สอนคนเดียว)
     primary_teacher_id: str
-    secondary_teacher_id: str
+    secondary_teacher_id: Optional[str] = None
     theory_room_type: RoomType = RoomType.LECTURE_HALL
     practice_room_type: RoomType = RoomType.CLASSROOM
+    theory_room_id: Optional[str] = None
+    practice_room_1_id: Optional[str] = None
+    practice_room_2_id: Optional[str] = None
     sync_parallel: bool = True
     source_assignment_id: Optional[str] = None
 

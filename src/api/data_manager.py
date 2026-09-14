@@ -387,15 +387,19 @@ class TimetableDataManager:
         primary_group_id: str,
         secondary_group_id: str,
         primary_teacher_id: str,
-        secondary_teacher_id: str,
+        secondary_teacher_id: Optional[str] = None,
+        teaching_mode: str = "CO_TEACHING",
         theory_room_type: str = "LECTURE_HALL",
         practice_room_type: str = "CLASSROOM",
+        theory_room_id: Optional[str] = None,
+        practice_room_1_id: Optional[str] = None,
+        practice_room_2_id: Optional[str] = None,
         sync_parallel: bool = True,
         source_assignment_id: Optional[str] = None
     ) -> Dict[str, Any]:
-        """สร้างแพ็กเกจวิชา 'ทฤษฎีเรียนรวม 2 กลุ่ม / ปฏิบัติแยกกลุ่ม 2 อาจารย์'
-        โดยจะสร้าง 2 Master Courses (ทฤษฎี และ ปฏิบัติ)
-        และสร้าง 3 Lesson Assignments ย่อยที่ผูกเชื่อมโยงกัน
+        """สร้างแพ็กเกจวิชา 'ทฤษฎีเรียนรวม 2 กลุ่ม / ปฏิบัติแยกกลุ่ม'
+        รองรับทั้งโหมดผู้สอนคนเดียว (Single Teacher) และสอนร่วม (Co-teaching 2 อาจารย์)
+        พร้อมระบุห้องเรียนประจำหรือห้องปฏิบัติการแยกกลุ่มได้เจาะจง
         """
         import time
         import re
@@ -403,6 +407,20 @@ class TimetableDataManager:
         clean_code = re.sub(r'[^a-zA-Z0-9]', '_', course_code).strip('_') or f"COURSE_{int(time.time())}"
         ts = int(time.time()) % 100000
         bundle_id = f"BUNDLE_{clean_code}_{ts}"
+
+        is_single_teacher = (teaching_mode == "SINGLE" or not secondary_teacher_id or secondary_teacher_id == primary_teacher_id)
+        effective_secondary_teacher_id = primary_teacher_id if is_single_teacher else secondary_teacher_id
+        # หากเป็นผู้สอนคนเดียว ไม่สามารถจัดคู่ขนานเวลาเดียวกันได้
+        effective_sync_parallel = False if is_single_teacher else bool(sync_parallel)
+
+        # ตรวจสอบประเภทห้องจากห้องจริงที่เลือก (ถ้ามี)
+        rooms_dict = {r["id"]: r for r in self.rooms}
+        if theory_room_id and theory_room_id in rooms_dict:
+            theory_room_type = rooms_dict[theory_room_id].get("room_type", theory_room_type)
+        if practice_room_1_id and practice_room_1_id in rooms_dict:
+            practice_room_type = rooms_dict[practice_room_1_id].get("room_type", practice_room_type)
+        elif practice_room_2_id and practice_room_2_id in rooms_dict:
+            practice_room_type = rooms_dict[practice_room_2_id].get("room_type", practice_room_type)
 
         # 1. Master Course สำหรับทฤษฎี
         t_course_id = f"C_{clean_code}_THEORY"
@@ -466,7 +484,7 @@ class TimetableDataManager:
             "is_pinned": False,
             "fixed_day": None,
             "fixed_start_period": None,
-            "fixed_room_id": None,
+            "fixed_room_id": theory_room_id or None,
             "external_teacher_name": None,
             "parallel_with_id": None,
             "component_type": "THEORY",
@@ -486,29 +504,29 @@ class TimetableDataManager:
             "is_pinned": False,
             "fixed_day": None,
             "fixed_start_period": None,
-            "fixed_room_id": None,
+            "fixed_room_id": practice_room_1_id or None,
             "external_teacher_name": None,
-            "parallel_with_id": ass_p2_id if sync_parallel else None,
+            "parallel_with_id": ass_p2_id if effective_sync_parallel else None,
             "component_type": "PRACTICE",
             "parent_assignment_id": bundle_id
         }
 
-        # 3.3 แผนการสอนปฏิบัติ กลุ่ม 2 (ผู้สอนคืออาจารย์ร่วม)
+        # 3.3 แผนการสอนปฏิบัติ กลุ่ม 2 (ผู้สอนคืออาจารย์ร่วม หรืออาจารย์คนเดียวกันถ้าเลือกผู้สอนคนเดียว)
         ass_p2 = {
             "id": ass_p2_id,
             "course_id": p_course_id,
             "primary_group_id": secondary_group_id,
             "secondary_group_id": None,
-            "teacher_id": secondary_teacher_id,
+            "teacher_id": effective_secondary_teacher_id,
             "secondary_teacher_id": None,
             "is_rotation": False,
             "teaching_mode": "SINGLE",
             "is_pinned": False,
             "fixed_day": None,
             "fixed_start_period": None,
-            "fixed_room_id": None,
+            "fixed_room_id": practice_room_2_id or None,
             "external_teacher_name": None,
-            "parallel_with_id": ass_p1_id if sync_parallel else None,
+            "parallel_with_id": ass_p1_id if effective_sync_parallel else None,
             "component_type": "PRACTICE",
             "parent_assignment_id": bundle_id
         }

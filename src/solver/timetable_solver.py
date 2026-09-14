@@ -26,14 +26,14 @@ class TimetableSolver:
             if a.primary_group_id in self.groups and a.teacher_id in self.teachers
         }
 
-        # รองรับห้องภายนอก / ห้องวิชาสามัญที่ถูกระบุใน fixed_room_id โดยอัตโนมัติ
+        # รองรับห้องภายนอก / ห้องวิชาสามัญ / ห้องประจำที่ถูกระบุใน fixed_room_id โดยอัตโนมัติ
         for a in self.assignments.values():
-            if getattr(a, "is_pinned", False) and getattr(a, "fixed_room_id", None):
-                f_rid = a.fixed_room_id
+            f_rid = getattr(a, "fixed_room_id", None)
+            if f_rid:
                 if f_rid not in self.rooms:
                     self.rooms[f_rid] = Room(
                         id=f_rid,
-                        name=f_rid if f_rid.startswith("ห้อง") or f_rid.startswith("ROOM") else f"ห้อง {f_rid}",
+                        name=f_rid if f_rid.startswith("ห้อง") or f_rid.startswith("ROOM") or f_rid.startswith("ศูนย์ฝึก") or f_rid.startswith("ช็อป") else f"ห้อง {f_rid}",
                         room_type=RoomType.CLASSROOM,
                         capacity=100
                     )
@@ -269,14 +269,14 @@ class TimetableSolver:
                         if active_in_slot:
                             self.model.Add(sum(active_in_slot) <= cap)
 
-        # 2. วิชาที่ล็อกห้องเรียนตายตัว (Pinned / Fixed Rooms) ต้องไม่ชนกันในห้องเดียวกัน
-        pinned_rooms = {}
+        # 2. วิชาที่ล็อกห้องเรียนตายตัว หรือระบุห้องประจำ (Pinned / Fixed Rooms) ต้องไม่ชนกันในห้องเดียวกัน
+        fixed_rooms = {}
         for a_id, a in self.assignments.items():
             f_room = getattr(a, "fixed_room_id", None)
-            if getattr(a, "is_pinned", False) and f_room and f_room in self.rooms:
-                pinned_rooms.setdefault(f_room, []).append(a_id)
+            if f_room and f_room in self.rooms:
+                fixed_rooms.setdefault(f_room, []).append(a_id)
 
-        for f_room, p_assignments in pinned_rooms.items():
+        for f_room, p_assignments in fixed_rooms.items():
             if len(p_assignments) <= 1:
                 continue
             for b in range(self.num_blocks):
@@ -401,11 +401,11 @@ class TimetableSolver:
     def _assign_rooms(self, results: list) -> None:
         """จัดสรรห้องเรียนจริงที่ตรงประเภทและความจุให้กับแต่ละรายวิชาโดยไม่มีการชนเวลา"""
         assigned = {}
-        # 1. วิชาที่ล็อกห้องเรียนตายตัว (Pinned Room)
+        # 1. วิชาที่ระบุห้องเรียนตายตัวหรือมีห้องประจำ (Fixed / Pinned Room)
         for r in results:
             a = r["assignment"]
             f_rid = getattr(a, "fixed_room_id", None)
-            if getattr(a, "is_pinned", False) and f_rid and f_rid in self.rooms:
+            if f_rid and f_rid in self.rooms:
                 assigned[a.id] = self.rooms[f_rid]
                 r["room"] = self.rooms[f_rid]
 

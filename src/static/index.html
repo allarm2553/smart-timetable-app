@@ -3174,6 +3174,61 @@
       }
     }
 
+    function setSplitTeachingMode(mode) {
+      const modeInput = document.getElementById('splitTeachingMode');
+      if (modeInput) modeInput.value = mode;
+      const btnCo = document.getElementById('btnSplitModeCoTeaching');
+      const btnSingle = document.getElementById('btnSplitModeSingle');
+      const secTchContainer = document.getElementById('splitSecondaryTeacherContainer');
+      const singleTchInfo = document.getElementById('splitSingleTeacherInfo');
+      const parallelContainer = document.getElementById('splitParallelContainer');
+      const singleParallelNotice = document.getElementById('splitSingleTeacherParallelNotice');
+      const parallelCheck = document.getElementById('splitSyncParallel');
+      const modeDesc = document.getElementById('splitModeDesc');
+      const grp2Title = document.getElementById('splitGroup2HeaderTitle');
+      const lblRoom2 = document.getElementById('lblSplitPracticeRoom2');
+
+      if (mode === 'SINGLE') {
+        if (btnSingle) btnSingle.className = 'px-3 py-1.5 rounded-md font-bold text-xs flex items-center gap-1 transition cursor-pointer bg-indigo-600 text-white shadow-xs';
+        if (btnCo) btnCo.className = 'px-3 py-1.5 rounded-md font-bold text-xs flex items-center gap-1 transition cursor-pointer text-slate-600 hover:text-slate-900 hover:bg-slate-100';
+        
+        if (modeDesc) modeDesc.textContent = 'อาจารย์หลักสอนทฤษฎีรวม และสอนปฏิบัติทั้ง 2 กลุ่ม (จัดคนละช่วงเวลา)';
+        if (grp2Title) grp2Title.innerHTML = '👥 กลุ่มที่ 2 (ปฏิบัติ)';
+        if (lblRoom2) lblRoom2.textContent = '3. ห้องปฏิบัติการกลุ่มที่ 2 (ใช้ห้องเดียวกันหรือแยกห้อง):';
+        
+        if (secTchContainer) secTchContainer.classList.add('hidden');
+        if (singleTchInfo) singleTchInfo.classList.remove('hidden');
+        handleSplitPrimaryTeacherChange();
+
+        if (parallelContainer) parallelContainer.classList.add('hidden');
+        if (singleParallelNotice) singleParallelNotice.classList.remove('hidden');
+        if (parallelCheck) parallelCheck.checked = false;
+      } else {
+        if (btnCo) btnCo.className = 'px-3 py-1.5 rounded-md font-bold text-xs flex items-center gap-1 transition cursor-pointer bg-indigo-600 text-white shadow-xs';
+        if (btnSingle) btnSingle.className = 'px-3 py-1.5 rounded-md font-bold text-xs flex items-center gap-1 transition cursor-pointer text-slate-600 hover:text-slate-900 hover:bg-slate-100';
+        
+        if (modeDesc) modeDesc.textContent = 'อาจารย์หลักสอนปฏิบัติกลุ่ม 1 และอาจารย์ร่วมสอนปฏิบัติกลุ่ม 2';
+        if (grp2Title) grp2Title.innerHTML = '👥 กลุ่มที่ 2 & อาจารย์ร่วม';
+        if (lblRoom2) lblRoom2.textContent = '3. ห้องปฏิบัติการกลุ่มที่ 2 (ห้องประจำอาจารย์ร่วม):';
+        
+        if (secTchContainer) secTchContainer.classList.remove('hidden');
+        if (singleTchInfo) singleTchInfo.classList.add('hidden');
+
+        if (parallelContainer) parallelContainer.classList.remove('hidden');
+        if (singleParallelNotice) singleParallelNotice.classList.add('hidden');
+        if (parallelCheck) parallelCheck.checked = true;
+      }
+      if (window.lucide) lucide.createIcons();
+    }
+
+    function handleSplitPrimaryTeacherChange() {
+      const tchSelect1 = document.getElementById('splitPrimaryTeacher');
+      const singleTchText = document.getElementById('splitSingleTeacherText');
+      if (tchSelect1 && singleTchText && tchSelect1.selectedOptions.length > 0) {
+        singleTchText.textContent = `สอนโดย ${tchSelect1.selectedOptions[0].text} (ผู้สอนคนเดียวทั้ง 2 กลุ่ม)`;
+      }
+    }
+
     function openSplitTheoryPracticeModal() {
       if (!fullDataManagerData) return;
 
@@ -3182,24 +3237,42 @@
       const grpSelect2 = document.getElementById('splitSecondaryGroup');
       const tchSelect1 = document.getElementById('splitPrimaryTeacher');
       const tchSelect2 = document.getElementById('splitSecondaryTeacher');
+      const rmTheory = document.getElementById('splitTheoryRoom');
+      const rmPrac1 = document.getElementById('splitPracticeRoom1');
+      const rmPrac2 = document.getElementById('splitPracticeRoom2');
 
       const grps = fullDataManagerData.groups || [];
       const tchs = fullDataManagerData.teachers || [];
+      const rooms = fullDataManagerData.rooms || [];
 
       const grpOpts = grps.map(g => `<option value="${g.id}">${g.name} (${g.level === 'VOC_CERT' ? 'ปวช.' : 'ปวส.'})</option>`).join('');
-      grpSelect1.innerHTML = grpOpts;
-      grpSelect2.innerHTML = grpOpts;
-      if (grps.length > 1) {
+      if (grpSelect1) grpSelect1.innerHTML = grpOpts;
+      if (grpSelect2) grpSelect2.innerHTML = grpOpts;
+      if (grps.length > 1 && grpSelect2) {
         grpSelect2.selectedIndex = 1;
       }
 
       const tchOpts = tchs.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
-      tchSelect1.innerHTML = tchOpts;
-      tchSelect2.innerHTML = tchOpts;
-      if (tchs.length > 1) {
+      if (tchSelect1) tchSelect1.innerHTML = tchOpts;
+      if (tchSelect2) tchSelect2.innerHTML = tchOpts;
+      if (tchs.length > 1 && tchSelect2) {
         tchSelect2.selectedIndex = 1;
       }
 
+      // โหลดรายการห้องเรียนลงใน Dropdown ทั้ง 3 ช่อง
+      const theoryRoomOpts = '<option value="">🤖 อัตโนมัติ: ให้ระบบจัดหาห้องบรรยายใหญ่ตามความจุ</option>' +
+        rooms.map(r => `<option value="${r.id}">[${r.id}] ${r.name} (${r.room_type} - จุ ${r.capacity} คน)</option>`).join('');
+      if (rmTheory) rmTheory.innerHTML = theoryRoomOpts;
+
+      const pracRoomOpts1 = '<option value="">🤖 อัตโนมัติ: จัดห้องปฏิบัติการตามความเหมาะสม</option>' +
+        rooms.map(r => `<option value="${r.id}">[${r.id}] ${r.name} (${r.room_type} - จุ ${r.capacity} คน)</option>`).join('');
+      if (rmPrac1) rmPrac1.innerHTML = pracRoomOpts1;
+
+      const pracRoomOpts2 = '<option value="">🤖 อัตโนมัติ: จัดห้องปฏิบัติการตามความเหมาะสม</option>' +
+        rooms.map(r => `<option value="${r.id}">[${r.id}] ${r.name} (${r.room_type} - จุ ${r.capacity} คน)</option>`).join('');
+      if (rmPrac2) rmPrac2.innerHTML = pracRoomOpts2;
+
+      setSplitTeachingMode('CO_TEACHING');
       document.getElementById('splitTheoryPracticeModal').classList.remove('hidden');
       if (window.lucide) lucide.createIcons();
     }
@@ -3239,23 +3312,24 @@
         }
       }
 
-      if (a.secondary_teacher_id) {
+      if (a.secondary_teacher_id && a.secondary_teacher_id !== a.teacher_id) {
         document.getElementById('splitSecondaryTeacher').value = a.secondary_teacher_id;
+        setSplitTeachingMode('CO_TEACHING');
       } else {
         const tchs = fullDataManagerData.teachers || [];
         const otherTch = tchs.find(t => t.id !== a.teacher_id && t.id !== 'T_UNASSIGNED');
         if (otherTch) {
           document.getElementById('splitSecondaryTeacher').value = otherTch.id;
         }
+        setSplitTeachingMode('CO_TEACHING');
       }
 
-      if (c.required_room_type) {
-        if (c.required_room_type === 'LECTURE_HALL' || c.required_room_type === 'CLASSROOM') {
-          document.getElementById('splitTheoryRoomType').value = c.required_room_type;
-        } else {
-          document.getElementById('splitPracticeRoomType').value = c.required_room_type;
-        }
+      if (a.fixed_room_id) {
+        const rmPrac1 = document.getElementById('splitPracticeRoom1');
+        if (rmPrac1) rmPrac1.value = a.fixed_room_id;
       }
+
+      handleSplitPrimaryTeacherChange();
     }
 
     function closeSplitTheoryPracticeModal() {
@@ -3271,15 +3345,26 @@
       const practice_periods = parseInt(document.getElementById('splitPracticePeriods').value) || 3;
       const primary_group_id = document.getElementById('splitPrimaryGroup').value;
       const secondary_group_id = document.getElementById('splitSecondaryGroup').value;
+      const teaching_mode = document.getElementById('splitTeachingMode') ? document.getElementById('splitTeachingMode').value : 'CO_TEACHING';
       const primary_teacher_id = document.getElementById('splitPrimaryTeacher').value;
-      const secondary_teacher_id = document.getElementById('splitSecondaryTeacher').value;
-      const theory_room_type = document.getElementById('splitTheoryRoomType').value;
-      const practice_room_type = document.getElementById('splitPracticeRoomType').value;
-      const sync_parallel = document.getElementById('splitSyncParallel').checked;
+      let secondary_teacher_id = document.getElementById('splitSecondaryTeacher').value;
+      
+      const theory_room_id = document.getElementById('splitTheoryRoom')?.value || null;
+      const practice_room_1_id = document.getElementById('splitPracticeRoom1')?.value || null;
+      const practice_room_2_id = document.getElementById('splitPracticeRoom2')?.value || null;
+      let sync_parallel = document.getElementById('splitSyncParallel') ? document.getElementById('splitSyncParallel').checked : false;
 
       if (!code || !name) return alert('กรุณาระบุรหัสวิชาและชื่อวิชา');
       if (primary_group_id === secondary_group_id) return alert('กลุ่มผู้เรียนที่ 1 และกลุ่มที่ 2 ต้องไม่เป็นกลุ่มเดียวกัน');
-      if (primary_teacher_id === secondary_teacher_id) return alert('อาจารย์หลักและอาจารย์ร่วมต้องไม่เป็นคนเดียวกัน');
+      
+      if (teaching_mode === 'SINGLE') {
+        secondary_teacher_id = primary_teacher_id;
+        sync_parallel = false;
+      } else {
+        if (primary_teacher_id === secondary_teacher_id) {
+          return alert('ในรูปแบบสอนร่วม 2 อาจารย์: อาจารย์หลักและอาจารย์ร่วมต้องไม่เป็นคนเดียวกัน (หากใช้ผู้สอนท่านเดียวกัน กรุณาเลือกโหมด "ผู้สอนคนเดียว")');
+        }
+      }
 
       const btn = document.getElementById('btnSubmitSplitTheoryPractice');
       const origHtml = btn.innerHTML;
@@ -3294,10 +3379,14 @@
           practice_periods,
           primary_group_id,
           secondary_group_id,
+          teaching_mode,
           primary_teacher_id,
           secondary_teacher_id,
-          theory_room_type,
-          practice_room_type,
+          theory_room_type: 'LECTURE_HALL',
+          practice_room_type: 'CLASSROOM',
+          theory_room_id,
+          practice_room_1_id,
+          practice_room_2_id,
           sync_parallel,
           source_assignment_id
         };
@@ -3312,7 +3401,8 @@
           closeSplitTheoryPracticeModal();
           await loadFullDataManager();
           await saveAndSolveCurrent();
-          showToast('🌟 แปลงเป็นวิชาทฤษฎีรวมและปฏิบัติแยกกลุ่ม 2 อาจารย์เรียบร้อยแล้ว!', 'success', 4000);
+          const modeLabel = teaching_mode === 'SINGLE' ? 'ผู้สอนคนเดียว' : 'สอนร่วม 2 อาจารย์';
+          showToast(`🌟 แปลงเป็นวิชาทฤษฎีรวมและปฏิบัติแยกกลุ่ม (${modeLabel}) เรียบร้อยแล้ว!`, 'success', 4000);
         } else {
           alert('ไม่สามารถสร้างได้: ' + (data.detail || data.message || 'เกิดข้อผิดพลาด'));
         }
@@ -4893,11 +4983,11 @@
             🌟
           </span>
           <div>
-            <h3 class="text-base font-bold font-display">ทฤษฎีเรียนรวม / ปฏิบัติแยกกลุ่ม 2 อาจารย์</h3>
-            <p class="text-xs text-blue-100">สร้างแผนการสอน ทฤษฎีรวม (ครู ก) และ ปฏิบัติแยกกลุ่ม (กลุ่ม 1: ครู ก / กลุ่ม 2: ครู ข) อัตโนมัติ</p>
+            <h3 class="text-base font-bold font-display">ทฤษฎีเรียนรวม / ปฏิบัติแยกกลุ่ม</h3>
+            <p class="text-xs text-blue-100">สร้างแผนการสอน ทฤษฎีรวม 2 กลุ่ม และ ปฏิบัติแยกกลุ่ม (เลือกผู้สอนคนเดียว หรือ สอนร่วม 2 อาจารย์ พร้อมระบุห้องเรียน)</p>
           </div>
         </div>
-        <button onclick="closeSplitTheoryPracticeModal()" class="text-blue-200 hover:text-white p-1 rounded-md transition cursor-pointer">
+        <button type="button" onclick="closeSplitTheoryPracticeModal()" class="text-blue-200 hover:text-white p-1 rounded-md transition cursor-pointer">
           <i data-lucide="x" class="w-5 h-5"></i>
         </button>
       </div>
@@ -4905,6 +4995,7 @@
       <!-- Modal Body -->
       <form onsubmit="handleSaveSplitTheoryPractice(event)" class="p-6 space-y-4 overflow-y-auto flex-1 text-xs">
         <input type="hidden" id="splitSourceAssignmentId">
+        <input type="hidden" id="splitTeachingMode" value="CO_TEACHING">
         
         <!-- Course Info -->
         <div class="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
@@ -4943,6 +5034,27 @@
           </div>
         </div>
 
+        <!-- Teaching Mode Selector (ผู้สอนคนเดียว vs สอนร่วม) -->
+        <div class="bg-indigo-50/70 border border-indigo-200 rounded-xl p-3 flex flex-col sm:flex-row items-center justify-between gap-2.5">
+          <div class="flex items-center gap-2">
+            <span class="p-1.5 bg-indigo-600 text-white rounded-lg shadow-xs"><i data-lucide="user-check" class="w-4 h-4"></i></span>
+            <div>
+              <span class="font-bold text-indigo-950 text-xs">รูปแบบอาจารย์ผู้สอน:</span>
+              <p class="text-[11px] text-indigo-700" id="splitModeDesc">อาจารย์หลักสอนปฏิบัติกลุ่ม 1 และอาจารย์ร่วมสอนปฏิบัติกลุ่ม 2</p>
+            </div>
+          </div>
+          <div class="flex items-center gap-1.5 bg-white p-1 rounded-lg border border-indigo-200 shadow-2xs shrink-0">
+            <button type="button" id="btnSplitModeCoTeaching" onclick="setSplitTeachingMode('CO_TEACHING')" class="px-3 py-1.5 rounded-md font-bold text-xs flex items-center gap-1 transition cursor-pointer bg-indigo-600 text-white shadow-xs">
+              <i data-lucide="users" class="w-3.5 h-3.5"></i>
+              <span>👥 สอนร่วม (2 อาจารย์)</span>
+            </button>
+            <button type="button" id="btnSplitModeSingle" onclick="setSplitTeachingMode('SINGLE')" class="px-3 py-1.5 rounded-md font-bold text-xs flex items-center gap-1 transition cursor-pointer text-slate-600 hover:text-slate-900 hover:bg-slate-100">
+              <i data-lucide="user" class="w-3.5 h-3.5"></i>
+              <span>👤 ผู้สอนคนเดียว</span>
+            </button>
+          </div>
+        </div>
+
         <!-- Groups & Teachers Config -->
         <div class="grid grid-cols-2 gap-4">
           <!-- Group 1 & Primary Teacher -->
@@ -4957,56 +5069,82 @@
             </div>
             <div>
               <label class="block font-bold text-slate-700 mb-1">อาจารย์หลัก (สอนทฤษฎีรวม & ปฏิบัติกลุ่ม 1): *</label>
-              <select id="splitPrimaryTeacher" required class="w-full bg-white border border-slate-300 rounded px-2.5 py-1.5 text-xs font-semibold text-slate-900"></select>
+              <select id="splitPrimaryTeacher" onchange="handleSplitPrimaryTeacherChange()" required class="w-full bg-white border border-slate-300 rounded px-2.5 py-1.5 text-xs font-semibold text-slate-900"></select>
             </div>
           </div>
 
           <!-- Group 2 & Secondary Teacher -->
           <div class="bg-emerald-50/70 border border-emerald-200 rounded-xl p-3.5 space-y-2.5">
             <div class="font-bold text-emerald-950 flex items-center justify-between">
-              <span>👥 กลุ่มที่ 2 & อาจารย์ร่วม</span>
+              <span id="splitGroup2HeaderTitle">👥 กลุ่มที่ 2 & อาจารย์ร่วม</span>
               <span class="text-[10px] bg-emerald-200 text-emerald-900 px-1.5 py-0.5 rounded font-bold">ปฏิบัติกลุ่ม 2</span>
             </div>
             <div>
               <label class="block font-bold text-slate-700 mb-1">กลุ่มผู้เรียนที่ 2 (เรียนร่วมทฤษฎี): *</label>
               <select id="splitSecondaryGroup" required class="w-full bg-white border border-slate-300 rounded px-2.5 py-1.5 text-xs font-semibold text-slate-900"></select>
             </div>
-            <div>
+            <div id="splitSecondaryTeacherContainer">
               <label class="block font-bold text-slate-700 mb-1">อาจารย์ร่วม (สอนปฏิบัติกลุ่ม 2): *</label>
               <select id="splitSecondaryTeacher" required class="w-full bg-white border border-slate-300 rounded px-2.5 py-1.5 text-xs font-semibold text-slate-900"></select>
+            </div>
+            <div id="splitSingleTeacherInfo" class="hidden p-2.5 bg-white border border-emerald-300 rounded-lg text-emerald-900 font-semibold text-xs flex items-center gap-2">
+              <i data-lucide="check-circle" class="w-4 h-4 text-emerald-600 shrink-0"></i>
+              <span id="splitSingleTeacherText">สอนโดยอาจารย์หลักคนเดียวกัน</span>
             </div>
           </div>
         </div>
 
-        <!-- Rooms Config -->
-        <div class="grid grid-cols-2 gap-4">
+        <!-- Rooms Config Section -->
+        <div class="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
+          <div class="flex items-center justify-between">
+            <div class="font-bold text-slate-800 flex items-center gap-1.5 text-xs text-indigo-900">
+              <i data-lucide="door-closed" class="w-4 h-4 text-indigo-600"></i>
+              <span>ระบุห้องเรียน / ห้องปฏิบัติการประจำ</span>
+            </div>
+            <span class="text-[11px] text-slate-500 font-normal">หากครูมีห้องประจำสามารถเลือกระบุได้เลย</span>
+          </div>
+
+          <!-- Theory Room -->
           <div>
-            <label class="block font-bold text-slate-700 mb-1">ห้องเรียนภาคทฤษฎี (ห้องใหญ่/บรรยาย):</label>
-            <select id="splitTheoryRoomType" class="w-full bg-white border border-slate-300 rounded px-2.5 py-1.5 text-xs">
-              <option value="LECTURE_HALL" selected>ห้องบรรยายใหญ่ (Lecture Hall 60-100 คน)</option>
-              <option value="CLASSROOM">ห้องทฤษฎีทั่วไป (Classroom 30-40 คน)</option>
+            <label class="block font-bold text-slate-700 mb-1">1. ห้องเรียนภาคทฤษฎี (ห้องบรรยายใหญ่สำหรับ 2 กลุ่ม):</label>
+            <select id="splitTheoryRoom" class="w-full bg-white border border-slate-300 rounded px-2.5 py-1.5 text-xs font-medium text-slate-900">
+              <option value="">🤖 อัตโนมัติ: ให้ระบบจัดหาห้องบรรยายใหญ่ตามความจุ</option>
             </select>
           </div>
-          <div>
-            <label class="block font-bold text-slate-700 mb-1">ห้องเรียนภาคปฏิบัติ (ศูนย์ฝึก/ช็อป):</label>
-            <select id="splitPracticeRoomType" class="w-full bg-white border border-slate-300 rounded px-2.5 py-1.5 text-xs">
-              <option value="CLASSROOM">ห้องปฏิบัติการทั่วไป (Classroom)</option>
-              <option value="LAB_ENGINE" selected>ศูนย์ฝึกช่างยนต์ (Lab Engine)</option>
-              <option value="LAB_ELECTRIC">ศูนย์ฝึกไฟฟ้า/อิเล็กทรอนิกส์ (Lab Electric)</option>
-              <option value="LAB_BODY_PAINT">ศูนย์ฝึกตัวถังและสี (Lab Body & Paint)</option>
-            </select>
+
+          <!-- Practice Rooms Grid -->
+          <div class="grid grid-cols-2 gap-3 pt-1">
+            <div>
+              <label class="block font-bold text-blue-900 mb-1">2. ห้องปฏิบัติการกลุ่มที่ 1 (ห้องประจำอาจารย์หลัก):</label>
+              <select id="splitPracticeRoom1" class="w-full bg-white border border-slate-300 rounded px-2.5 py-1.5 text-xs font-medium text-slate-900">
+                <option value="">🤖 อัตโนมัติ: จัดห้องปฏิบัติการตามความเหมาะสม</option>
+              </select>
+            </div>
+            <div>
+              <label class="block font-bold text-emerald-900 mb-1" id="lblSplitPracticeRoom2">3. ห้องปฏิบัติการกลุ่มที่ 2 (ห้องประจำอาจารย์ร่วม):</label>
+              <select id="splitPracticeRoom2" class="w-full bg-white border border-slate-300 rounded px-2.5 py-1.5 text-xs font-medium text-slate-900">
+                <option value="">🤖 อัตโนมัติ: จัดห้องปฏิบัติการตามความเหมาะสม</option>
+              </select>
+            </div>
           </div>
         </div>
 
         <!-- Options: Parallel vs Staggered -->
-        <div class="p-3 bg-amber-50 border border-amber-200 rounded-xl space-y-2">
+        <div id="splitParallelContainer" class="p-3 bg-amber-50 border border-amber-200 rounded-xl space-y-2 transition-all">
           <label class="flex items-start space-x-2 cursor-pointer select-none">
             <input type="checkbox" id="splitSyncParallel" checked class="mt-0.5 rounded text-indigo-600 focus:ring-indigo-500 w-4 h-4">
             <div>
               <span class="font-bold text-amber-950 text-xs">จัดชั่วโมงปฏิบัติของทั้ง 2 กลุ่มให้ตรงกันเป๊ะในเวลาเดียวกัน (คู่ขนาน 2 ห้องฝึก)</span>
-              <p class="text-[11px] text-amber-800">นักศึกษาทั้งกลุ่ม 1 และ 2 จะเข้าช็อปพร้อมกัน โดยกลุ่ม 1 อยู่กับครู ก และกลุ่ม 2 อยู่กับครู ข ในคนละศูนย์ฝึก</p>
+              <p class="text-[11px] text-amber-800" id="splitParallelExplain">นักศึกษาทั้งกลุ่ม 1 และ 2 จะเข้าช็อปพร้อมกัน โดยกลุ่ม 1 อยู่กับครู ก และกลุ่ม 2 อยู่กับครู ข ในคนละศูนย์ฝึก</p>
             </div>
           </label>
+        </div>
+        <div id="splitSingleTeacherParallelNotice" class="hidden p-3 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-900 flex items-start gap-2">
+          <i data-lucide="info" class="w-4 h-4 text-blue-600 shrink-0 mt-0.5"></i>
+          <div>
+            <span class="font-bold">โหมดผู้สอนคนเดียว:</span>
+            <p class="text-[11px] text-blue-800">เนื่องจากอาจารย์ผู้สอนท่านเดียวไม่สามารถสอน 2 กลุ่มพร้อมกันได้ ระบบจะจัดคาบปฏิบัติของทั้ง 2 กลุ่มแยกช่วงเวลากันให้อัตโนมัติ (แม้จะใช้ห้องปฏิบัติการเดียวกันหรือไม่ก็ตาม)</p>
+          </div>
         </div>
 
         <!-- Footer Buttons -->

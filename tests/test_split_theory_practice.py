@@ -142,5 +142,102 @@ class TestSplitTheoryPractice(unittest.TestCase):
 
         print("✅ test_api_split_theory_practice_bundle_creation passed: API created 3 assignments and solver scheduled them successfully!")
 
+    def test_single_teacher_mode_and_same_room_scheduling(self):
+        """ทดสอบโหมดผู้สอนคนเดียว (Single Teacher):
+        ครูคนเดียวสอนทฤษฎีรวม และสอนปฏิบัติทั้งกลุ่ม 1 และกลุ่ม 2 ในห้องปฏิบัติการเดียวกัน
+        ระบบต้องจัดเวลาปฏิบัติคนละช่วงเวลา โดยไม่มีการชนคาบสอนของครู และไม่มีการชนห้องเรียน"""
+        payload = {
+            "course_name": "งานเชื่อมโลหะแผ่น",
+            "course_code": "20103-1002",
+            "theory_periods": 1,
+            "practice_periods": 3,
+            "primary_group_id": "G_CHO_1_1",
+            "secondary_group_id": "G_CHO_1_2",
+            "primary_teacher_id": "T_PONG",
+            "teaching_mode": "SINGLE",
+            "theory_room_id": "R1",
+            "practice_room_1_id": "R2",
+            "practice_room_2_id": "R2",  # ทั้งสองกลุ่มใช้ห้องปฏิบัติการเดียวกัน
+            "sync_parallel": False
+        }
+
+        res = client.post("/api/courses/split-theory-practice", json=payload)
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        self.assertTrue(data["is_success"])
+        assignments = data["data"]["assignments"]
+
+        # ตรวจสอบว่า Assignment ปฏิบัติทั้ง 2 ใช้ครูคนเดียวกัน และไม่มี parallel_with_id
+        prac_ass = [a for a in assignments if a["component_type"] == "PRACTICE"]
+        self.assertEqual(len(prac_ass), 2)
+        self.assertEqual(prac_ass[0]["teacher_id"], "T_PONG")
+        self.assertEqual(prac_ass[1]["teacher_id"], "T_PONG")
+        self.assertIsNone(prac_ass[0]["parallel_with_id"])
+        self.assertIsNone(prac_ass[1]["parallel_with_id"])
+        self.assertEqual(prac_ass[0]["fixed_room_id"], "R2")
+        self.assertEqual(prac_ass[1]["fixed_room_id"], "R2")
+
+        # สั่งจัดตาราง
+        solve_res = client.post("/api/solve/current")
+        self.assertEqual(solve_res.status_code, 200)
+        s_data = solve_res.json()
+        self.assertTrue(s_data["is_success"])
+
+        # ค้นหาผลลัพธ์ของคาบปฏิบัติทั้งสอง
+        p1_res = next(x for x in s_data["schedule"] if x["assignment_id"] == prac_ass[0]["id"])
+        p2_res = next(x for x in s_data["schedule"] if x["assignment_id"] == prac_ass[1]["id"])
+
+        # ตรวจสอบว่าจัดในห้อง R2 ทั้งคู่
+        self.assertEqual(p1_res["room_id"], "R2")
+        self.assertEqual(p2_res["room_id"], "R2")
+
+        # ตรวจสอบว่าไม่ชนเวลากัน (เพราะครูคนเดียวกัน และห้องเดียวกัน)
+        if p1_res["day"] == p2_res["day"]:
+            s1, e1 = p1_res["start_period"], p1_res["end_period"]
+            s2, e2 = p2_res["start_period"], p2_res["end_period"]
+            self.assertTrue(e1 < s2 or e2 < s1, "หากจัดในวันเดียวกัน คาบต้องไม่ซ้อนทับกันเด็ดขาด")
+
+        print("✅ test_single_teacher_mode_and_same_room_scheduling passed: Single teacher with shared lab scheduled without conflict!")
+
+    def test_designated_separate_lab_rooms_co_teaching(self):
+        """ทดสอบโหมดสอนร่วม (Co-teaching) ที่ระบุห้องปฏิบัติการประจำคนละห้อง:
+        กลุ่ม 1 ใช้ R1, กลุ่ม 2 ใช้ R2 จัดแบบคู่ขนานเวลาเดียวกัน"""
+        payload = {
+            "course_name": "งานทดสอบเครื่องกล",
+            "course_code": "20101-2005",
+            "theory_periods": 1,
+            "practice_periods": 3,
+            "primary_group_id": "G_CHO_1_1",
+            "secondary_group_id": "G_CHO_1_2",
+            "primary_teacher_id": "T_PONG",
+            "secondary_teacher_id": "T_THONG",
+            "teaching_mode": "CO_TEACHING",
+            "theory_room_id": "R3",
+            "practice_room_1_id": "R1",
+            "practice_room_2_id": "R2",
+            "sync_parallel": True
+        }
+
+        res = client.post("/api/courses/split-theory-practice", json=payload)
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        assignments = data["data"]["assignments"]
+
+        solve_res = client.post("/api/solve/current")
+        self.assertEqual(solve_res.status_code, 200)
+        s_data = solve_res.json()
+        self.assertTrue(s_data["is_success"])
+
+        prac_ass = [a for a in assignments if a["component_type"] == "PRACTICE"]
+        p1_res = next(x for x in s_data["schedule"] if x["assignment_id"] == prac_ass[0]["id"])
+        p2_res = next(x for x in s_data["schedule"] if x["assignment_id"] == prac_ass[1]["id"])
+
+        self.assertEqual(p1_res["room_id"], "R1", "กลุ่ม 1 ต้องได้ห้องประจำ R1")
+        self.assertEqual(p2_res["room_id"], "R2", "กลุ่ม 2 ต้องได้ห้องประจำ R2")
+        self.assertEqual(p1_res["day"], p2_res["day"], "ต้องเรียนวันเดียวกันแบบคู่ขนาน")
+        self.assertEqual(p1_res["start_period"], p2_res["start_period"], "ต้องเริ่มคาบเดียวกันแบบคู่ขนาน")
+
+        print("✅ test_designated_separate_lab_rooms_co_teaching passed: Separate designated rooms parallel scheduled accurately!")
+
 if __name__ == "__main__":
     unittest.main()

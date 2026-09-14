@@ -606,8 +606,12 @@ def api_create_split_theory_practice(payload: SplitTheoryPracticeRequest):
             secondary_group_id=payload.secondary_group_id,
             primary_teacher_id=payload.primary_teacher_id,
             secondary_teacher_id=payload.secondary_teacher_id,
+            teaching_mode=payload.teaching_mode,
             theory_room_type=t_rm,
             practice_room_type=p_rm,
+            theory_room_id=payload.theory_room_id,
+            practice_room_1_id=payload.practice_room_1_id,
+            practice_room_2_id=payload.practice_room_2_id,
             sync_parallel=payload.sync_parallel,
             source_assignment_id=payload.source_assignment_id
         )

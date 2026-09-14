@@ -2491,6 +2491,7 @@
         console.error("Failed to load data:", err);
       }
     }
+    const loadFullDataManager = refreshDataManagerData;
 
     function renderGroupsTab() {
       if (!fullDataManagerData) return;
@@ -3399,7 +3400,7 @@
         const data = await res.json();
         if (res.ok && data.is_success) {
           closeSplitTheoryPracticeModal();
-          await loadFullDataManager();
+          await refreshDataManagerData();
           await saveAndSolveCurrent();
           const modeLabel = teaching_mode === 'SINGLE' ? 'ผู้สอนคนเดียว' : 'สอนร่วม 2 อาจารย์';
           showToast(`🌟 แปลงเป็นวิชาทฤษฎีรวมและปฏิบัติแยกกลุ่ม (${modeLabel}) เรียบร้อยแล้ว!`, 'success', 4000);

@@ -196,19 +196,27 @@ def _run_solver(
             sec_t_id = getattr(ass, "secondary_teacher_id", None)
             sec_t_name = t_map[sec_t_id].name if sec_t_id and sec_t_id in t_map else None
 
+            t_obj = r.get("teacher")
+            t_id = t_obj.id if t_obj else (ass.teacher_id or "T_UNASSIGNED")
+            t_name = t_obj.name if t_obj else (t_map[t_id].name if t_id in t_map else t_id)
+
+            rm_obj = r.get("room")
+            rm_id = rm_obj.id if rm_obj else (getattr(ass, "fixed_room_id", None) or "ROOM_GEN")
+            rm_name = rm_obj.name if rm_obj else (getattr(ass, "fixed_room_id", None) or "ห้องเรียนทั่วไป")
+
             entry = ScheduleEntryDTO(
                 assignment_id=ass.id,
                 course_id=ass.course.id,
                 course_name=ass.course.name,
                 course_code=ass.course.code or ass.course.id,
                 course_type=ass.course.course_type,
-                teacher_id=r["teacher"].id,
-                teacher_name=r["teacher"].name,
+                teacher_id=t_id,
+                teacher_name=t_name,
                 secondary_teacher_id=sec_t_id,
                 secondary_teacher_name=sec_t_name,
                 teaching_mode=getattr(ass, "teaching_mode", "SINGLE"),
-                room_id=r["room"].id,
-                room_name=r["room"].name,
+                room_id=rm_id,
+                room_name=rm_name,
                 primary_group_id=ass.primary_group_id,
                 secondary_group_id=ass.secondary_group_id,
                 is_merged=ass.secondary_group_id is not None,

@@ -446,15 +446,35 @@ class TimetableSolver:
         self.model.Maximize(total_obj)
 
     def _assign_rooms(self, results: list) -> None:
-        """จัดสรรห้องเรียนจริงที่ตรงประเภทและความจุให้กับแต่ละรายวิชาโดยไม่มีการชนเวลา"""
+        """จัดสรรห้องเรียนจริงที่ตรงประเภทและความจุให้กับแต่ละรายวิชาโดยไม่มีการชนเวลา พร้อมระบบสำรองห้องอัตโนมัติ"""
+        if not results:
+            return
+
+        # กำหนดห้องเรียนเริ่มต้นสำรอง กรณีที่ไม่มีห้องในระบบเลย
+        fallback_room = next(iter(self.rooms.values()), None)
+        if fallback_room is None:
+            fallback_room = Room(id="ROOM_GEN", name="ห้องเรียนทั่วไป", room_type=RoomType.CLASSROOM, capacity=40)
+            self.rooms[fallback_room.id] = fallback_room
+
         assigned = {}
         # 1. วิชาที่ระบุห้องเรียนตายตัวหรือมีห้องประจำ (Fixed / Pinned Room)
         for r in results:
             a = r["assignment"]
             f_rid = getattr(a, "fixed_room_id", None)
-            if f_rid and f_rid in self.rooms:
-                assigned[a.id] = self.rooms[f_rid]
-                r["room"] = self.rooms[f_rid]
+            if f_rid:
+                if f_rid in self.rooms:
+                    assigned[a.id] = self.rooms[f_rid]
+                    r["room"] = self.rooms[f_rid]
+                else:
+                    new_r = Room(
+                        id=f_rid,
+                        name=f_rid if f_rid.startswith("ห้อง") or f_rid.startswith("ROOM") or f_rid.startswith("ศูนย์ฝึก") or f_rid.startswith("ช็อป") else f"ห้อง {f_rid}",
+                        room_type=getattr(a.course, "required_room_type", RoomType.CLASSROOM) or RoomType.CLASSROOM,
+                        capacity=40
+                    )
+                    self.rooms[f_rid] = new_r
+                    assigned[a.id] = new_r
+                    r["room"] = new_r
 
         # 2. จัดกลุ่มห้องเรียนตามประเภท
         rooms_by_type = {}
@@ -462,32 +482,36 @@ class TimetableSolver:
             rooms_by_type.setdefault(room.room_type, []).append(room)
 
         # 3. จัดสรรห้องเรียนให้วิชาที่ยังไม่ได้ระบุห้อง
-        for r_type, r_list in rooms_by_type.items():
-            unassigned = [
-                r for r in results
-                if r["assignment"].id not in assigned and r["assignment"].course.required_room_type == r_type
-            ]
-            unassigned.sort(key=lambda x: (x["day"], x["start_period"]))
+        unassigned = [r for r in results if r["assignment"].id not in assigned]
+        unassigned.sort(key=lambda x: (x["day"], x["start_period"]))
 
-            for item in unassigned:
-                a = item["assignment"]
-                p_grp = self.groups[a.primary_group_id]
-                total_students = p_grp.student_count
-                if a.secondary_group_id and a.secondary_group_id in self.groups:
-                    total_students += self.groups[a.secondary_group_id].student_count
+        for item in unassigned:
+            a = item["assignment"]
+            req_type = getattr(a.course, "required_room_type", None) or RoomType.CLASSROOM
 
-                # เรียงลำดับห้อง: ห้องที่ความจุพอดีก่อน
-                sorted_rooms = sorted(
-                    r_list,
-                    key=lambda rm: (rm.capacity < total_students, rm.capacity)
-                )
+            # ห้องที่ตรงประเภท ถ้าไม่มีให้ใช้ห้องทั้งหมดที่มี
+            candidate_rooms = rooms_by_type.get(req_type) or list(self.rooms.values())
+            if not candidate_rooms:
+                candidate_rooms = [fallback_room]
 
-                chosen = None
-                for room in sorted_rooms:
-                    collision = False
-                    for other_id, other_room in assigned.items():
-                        if other_room.id == room.id:
-                            other_item = next(x for x in results if x["assignment"].id == other_id)
+            p_grp = self.groups.get(a.primary_group_id)
+            total_students = p_grp.student_count if p_grp else 30
+            if a.secondary_group_id and a.secondary_group_id in self.groups:
+                total_students += self.groups[a.secondary_group_id].student_count
+
+            # เรียงลำดับห้อง: ห้องที่ความจุพอดีก่อน
+            sorted_rooms = sorted(
+                candidate_rooms,
+                key=lambda rm: (rm.capacity < total_students, rm.capacity)
+            )
+
+            chosen = None
+            for room in sorted_rooms:
+                collision = False
+                for other_id, other_room in assigned.items():
+                    if other_room.id == room.id:
+                        other_item = next((x for x in results if x["assignment"].id == other_id), None)
+                        if other_item:
                             # เช็กว่าเรียนในบล็อกเดียวกันหรือไม่
                             if set(item["active_blocks"]) & set(other_item["active_blocks"]):
                                 if item["day"] == other_item["day"]:
@@ -498,15 +522,20 @@ class TimetableSolver:
                                     if max(s1, s2) < min(e1, e2):
                                         collision = True
                                         break
-                    if not collision:
-                        chosen = room
-                        break
+                if not collision:
+                    chosen = room
+                    break
 
-                if not chosen:
-                    chosen = r_list[0] if r_list else list(self.rooms.values())[0]
+            if not chosen:
+                chosen = sorted_rooms[0]
 
-                assigned[a.id] = chosen
-                item["room"] = chosen
+            assigned[a.id] = chosen
+            item["room"] = chosen
+
+        # 4. Safety sweep ป้องกัน None 100%
+        for r in results:
+            if r.get("room") is None:
+                r["room"] = fallback_room
 
     def solve(self, time_limit_seconds: float = 20.0):
         if not self.starts:

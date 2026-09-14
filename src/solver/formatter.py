@@ -33,8 +33,8 @@ def format_timetable_by_group(results: List[Dict[str, Any]], group_id: str, grou
             dur = r["duration"]
             ass = r["assignment"]
             c_name = ass.course.name
-            t_name = r["teacher"].name
-            room_name = r["room"].name
+            t_name = r["teacher"].name if r.get("teacher") else "ไม่ระบุผู้สอน"
+            room_name = r["room"].name if r.get("room") else "ห้องเรียนทั่วไป"
             is_merged = ass.secondary_group_id is not None
             merge_tag = " (เรียนรวม)" if is_merged else ""
 
@@ -78,9 +78,10 @@ def format_teacher_schedule(results: List[Dict[str, Any]], teacher_id: str, teac
             groups = ass.primary_group_id
             if ass.secondary_group_id:
                 groups += f" + {ass.secondary_group_id} (เรียนรวม)"
+            rm_name = r["room"].name if r.get("room") else "ห้องเรียนทั่วไป"
             lines.append(
                 f"  - {d} คาบที่ {p_start}–{p_end}: {ass.course.name} "
-                f"| กลุ่ม: {groups} | ห้อง: {r['room'].name}"
+                f"| กลุ่ม: {groups} | ห้อง: {rm_name}"
             )
 
     return "\n".join(lines)

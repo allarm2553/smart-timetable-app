@@ -2,7 +2,8 @@ from typing import Dict, List, Tuple, Optional
 from ortools.sat.python import cp_model
 from src.solver.models import (
     Teacher, Room, StudentGroup, Course, LessonAssignment,
-    EducationLevel, CourseType, RoomType
+    EducationLevel, CourseType, RoomType,
+    get_group_year_category, is_scout_assignment, is_activity_assignment
 )
 
 class TimetableSolver:
@@ -90,15 +91,35 @@ class TimetableSolver:
             is_internship_grp = getattr(primary_grp, "is_internship", False) or (secondary_grp and getattr(secondary_grp, "is_internship", False))
             is_theory = (a.course.course_type == CourseType.THEORY)
 
+            # ตรวจสอบประเภทวิชาและกลุ่มเรียนสำหรับเงื่อนไขล็อกวันพุธ คาบ 7-8 (ลูกเสือ ปวช.1 / กิจกรรม ปวช.2, 3, ปวส.4)
+            c_name = a.course.name or ""
+            c_code = getattr(a.course, "code", "") or ""
+            is_scout = is_scout_assignment(c_name, c_code)
+            is_activity = is_activity_assignment(c_name, c_code)
+
+            lvl_str = primary_grp.level.value if hasattr(primary_grp.level, "value") else str(primary_grp.level)
+            grp_cat = get_group_year_category(primary_grp.name, lvl_str)
+
+            is_mandated_scout = (is_scout and grp_cat == "VOC_1")
+            is_mandated_activity = (is_activity and grp_cat in ("VOC_2", "VOC_3", "PVS_4"))
+
             # ตรวจสอบการล็อกคาบเรียนตายตัวล่วงหน้า (Pinned / Pre-assigned Lessons สำหรับวิชาสามัญ)
-            is_pinned = getattr(a, "is_pinned", False)
+            is_pinned = getattr(a, "is_pinned", False) or is_mandated_scout or is_mandated_activity
             fixed_day = getattr(a, "fixed_day", None)
             fixed_start = getattr(a, "fixed_start_period", None)
+
+            if (is_mandated_scout or is_mandated_activity) and (fixed_day is None or fixed_start is None):
+                fixed_day = 2           # วันพุธ (day index 2)
+                fixed_start = 7         # คาบ 7 (period index 6)
+                a.is_pinned = True
+                a.fixed_day = 2
+                a.fixed_start_period = 7
 
             start_vars = []
             for d in range(self.days):
                 for p in range(valid_start_periods):
                     overlaps_lunch = (p <= self.lunch_period < p + duration)
+                    overlaps_wed_7_8 = (d == 2 and max(p, 6) < min(p + duration, 8))
 
                     if is_pinned and fixed_day is not None and fixed_start is not None:
                         target_p = fixed_start - 1 if fixed_start >= 1 else fixed_start
@@ -107,8 +128,12 @@ class TimetableSolver:
                         # กลุ่มฝึกงานในสถานประกอบการ: ทฤษฎีจัดหลัง 18:00 (คาบ 11-12)
                         is_valid_time = (p >= 10 and p + duration <= self.periods_per_day)
                     else:
-                        # ปกติ: กลางวัน ไม่ทับพักเที่ยง ไม่เกินคาบ 10
-                        is_valid_time = (not overlaps_lunch and p + duration <= 10)
+                        # สำหรับกลุ่มเรียนปกติ: ห้ามจัดวิชาเรียนปกติชนวันพุธ คาบ 7-8 (สงวนไว้สำหรับลูกเสือ/กิจกรรม)
+                        is_group_covered = (grp_cat in ("VOC_1", "VOC_2", "VOC_3", "PVS_4"))
+                        if is_group_covered and overlaps_wed_7_8:
+                            is_valid_time = False
+                        else:
+                            is_valid_time = (not overlaps_lunch and p + duration <= 10)
 
                     if is_valid_time:
                         var = self.model.NewBoolVar(f"start_{a_id}_d{d}_p{p}")

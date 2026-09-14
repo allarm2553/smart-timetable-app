@@ -5,7 +5,8 @@ from typing import Dict, List, Any, Optional
 
 from src.solver.models import (
     Teacher, Room, StudentGroup, Course, LessonAssignment,
-    EducationLevel, CourseType, RoomType
+    EducationLevel, CourseType, RoomType,
+    get_group_year_category, is_scout_assignment, is_activity_assignment
 )
 from src.solver.benchmark_data import get_benchmark_dataset
 
@@ -540,6 +541,123 @@ class TimetableDataManager:
             "theory_course": self.courses[t_course_id],
             "practice_course": self.courses[p_course_id],
             "assignments": [ass_theory, ass_p1, ass_p2]
+        }
+
+    def auto_add_scout_and_activities(self) -> Dict[str, Any]:
+        """
+        สร้างและล็อกคาบเรียนวันพุธ คาบ 7-8 อัตโนมัติ:
+        - ปวช.1: วิชาลูกเสือวิสามัญ (20000-2001)
+        - ปวช.2, ปวช.3: กิจกรรมองค์การวิชาชีพ (20000-2003)
+        - ปวส.4 / ปวส.1-2: กิจกรรมองค์การวิชาชีพ (30000-2001)
+        """
+        default_teacher_id = self.teachers[0]["id"] if self.teachers else "T_UNASSIGNED"
+        default_room_id = self.rooms[0]["id"] if self.rooms else None
+
+        # ลงทะเบียนรายวิชามาตรฐานหากยังไม่มี
+        if "C_SCOUT_VOC1" not in self.courses:
+            self.courses["C_SCOUT_VOC1"] = {
+                "name": "กิจกรรมลูกเสือวิสามัญ 1",
+                "code": "20000-2001",
+                "course_type": "THEORY",
+                "periods_per_session": 2,
+                "sessions_per_week": 1,
+                "required_room_type": "CLASSROOM",
+                "allow_merge": False,
+                "base_id": None
+            }
+
+        if "C_ACTIVITY_VOC" not in self.courses:
+            self.courses["C_ACTIVITY_VOC"] = {
+                "name": "กิจกรรมองค์การวิชาชีพ 1 (ปวช.)",
+                "code": "20000-2003",
+                "course_type": "THEORY",
+                "periods_per_session": 2,
+                "sessions_per_week": 1,
+                "required_room_type": "CLASSROOM",
+                "allow_merge": False,
+                "base_id": None
+            }
+
+        if "C_ACTIVITY_PVS" not in self.courses:
+            self.courses["C_ACTIVITY_PVS"] = {
+                "name": "กิจกรรมองค์การวิชาชีพ 1 (ปวส.)",
+                "code": "30000-2001",
+                "course_type": "THEORY",
+                "periods_per_session": 2,
+                "sessions_per_week": 1,
+                "required_room_type": "CLASSROOM",
+                "allow_merge": False,
+                "base_id": None
+            }
+
+        added_count = 0
+        updated_count = 0
+
+        for g in self.groups:
+            gid = g["id"]
+            gname = g.get("name", "")
+            glvl = g.get("level", "VOC_CERT")
+            cat = get_group_year_category(gname, glvl)
+
+            if cat == "VOC_1":
+                target_course_id = "C_SCOUT_VOC1"
+                prefix = "ASG_SCOUT_"
+            elif cat in ("VOC_2", "VOC_3"):
+                target_course_id = "C_ACTIVITY_VOC"
+                prefix = "ASG_ACT_VOC_"
+            elif cat == "PVS_4":
+                target_course_id = "C_ACTIVITY_PVS"
+                prefix = "ASG_ACT_PVS_"
+            else:
+                continue
+
+            # ตรวจสอบว่ากลุ่มนี้มี assignment ลูกเสือหรือกิจกรรมอยู่แล้วหรือไม่
+            existing = None
+            for a in self.assignments:
+                if a.get("primary_group_id") == gid:
+                    c_info = self.courses.get(a.get("course_id", ""), {})
+                    c_n = c_info.get("name", "")
+                    c_c = c_info.get("code", "")
+                    if cat == "VOC_1" and is_scout_assignment(c_n, c_c):
+                        existing = a
+                        break
+                    elif cat in ("VOC_2", "VOC_3", "PVS_4") and is_activity_assignment(c_n, c_c):
+                        existing = a
+                        break
+
+            if existing:
+                existing["is_pinned"] = True
+                existing["fixed_day"] = 2
+                existing["fixed_start_period"] = 7
+                if not existing.get("fixed_room_id") and default_room_id:
+                    existing["fixed_room_id"] = default_room_id
+                updated_count += 1
+            else:
+                new_a = {
+                    "id": f"{prefix}{gid}",
+                    "course_id": target_course_id,
+                    "primary_group_id": gid,
+                    "teacher_id": default_teacher_id,
+                    "secondary_teacher_id": None,
+                    "secondary_group_id": None,
+                    "is_rotation": False,
+                    "teaching_mode": "SINGLE",
+                    "is_pinned": True,
+                    "fixed_day": 2,
+                    "fixed_start_period": 7,
+                    "fixed_room_id": default_room_id,
+                    "external_teacher_name": None
+                }
+                self.assignments.append(new_a)
+                added_count += 1
+
+        self._sanitize_data()
+        self._save()
+        return {
+            "is_success": True,
+            "added_count": added_count,
+            "updated_count": updated_count,
+            "message": f"เพิ่ม/ล็อกคาบสำเร็จ: เพิ่มใหม่ {added_count} กลุ่ม, ปรับปรุงล็อกเวลา {updated_count} กลุ่ม (วันพุธ คาบ 7-8)"
         }
 
 

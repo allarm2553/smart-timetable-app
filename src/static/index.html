@@ -1713,6 +1713,32 @@
       lucide.createIcons();
     }
 
+    function getGroupCategoryJs(groupId) {
+      let g = null;
+      if (benchmarkData && benchmarkData.groups) {
+        g = benchmarkData.groups.find(x => x.id === groupId);
+      }
+      if (!g && fullDataManagerData && fullDataManagerData.groups) {
+        g = fullDataManagerData.groups.find(x => x.id === groupId);
+      }
+      if (!g) return 'OTHER';
+      const name = g.name || '';
+      const lvl = String(g.level || '').toUpperCase();
+      if (name.includes('ปวส.4') || name.includes('ปวส. 4') || /4\s*\//.test(name) || name.includes('ปวส.1') || name.includes('ปวส.2') || /5\s*\//.test(name) || lvl.includes('HIGH_VOC_CERT') || name.includes('ปวส')) {
+        return 'PVS_4';
+      }
+      if (name.includes('ปวช.1') || name.includes('ปวช. 1') || name.includes('ปี 1') || /1\s*\//.test(name)) {
+        return 'VOC_1';
+      }
+      if (name.includes('ปวช.2') || name.includes('ปวช. 2') || name.includes('ปี 2') || /2\s*\//.test(name)) {
+        return 'VOC_2';
+      }
+      if (name.includes('ปวช.3') || name.includes('ปวช. 3') || name.includes('ปี 3') || /3\s*\//.test(name)) {
+        return 'VOC_3';
+      }
+      return 'OTHER';
+    }
+
     function renderTimetable() {
       if (!solveResult || !solveResult.schedule) return;
 
@@ -1849,6 +1875,8 @@
                       ${lesson.component_type === 'PRACTICE' ? '<span class="text-[9px] bg-emerald-700 text-white px-1 rounded font-sans font-bold" title="ปฏิบัติการ (แยกกลุ่ม)">ปฏิบัติ</span>' : ''}
                       ${lesson.parallel_with_id ? '<span class="text-[9px] bg-amber-600 text-white px-1 rounded font-sans font-bold" title="ฝึกปฏิบัติคู่ขนานพร้อมกัน 2 กลุ่ม">⚡ขนาน</span>' : ''}
                       ${lesson.secondary_teacher_name ? '<span class="text-[9px] bg-teal-700 text-white px-1 rounded font-sans font-bold" title="ครูร่วมสอน: ' + lesson.secondary_teacher_name + '">👥ร่วม</span>' : ''}
+                      ${((lesson.course_name && lesson.course_name.includes('ลูกเสือ')) || (lesson.course_code && lesson.course_code.includes('20000-2001'))) ? '<span class="text-[9px] bg-emerald-800 text-white px-1 rounded font-sans font-bold shadow-2xs" title="วิชาลูกเสือวิสามัญ (ล็อกวันพุธ คาบ 7-8)">🏕️ลูกเสือ</span>' : ''}
+                      ${((lesson.course_name && (lesson.course_name.includes('กิจกรรม') || lesson.course_name.includes('องค์การ'))) || (lesson.course_code && (lesson.course_code.includes('20000-200') || lesson.course_code.includes('30000-200')))) ? '<span class="text-[9px] bg-sky-800 text-white px-1 rounded font-sans font-bold shadow-2xs" title="คาบกิจกรรมวิทยาลัย (ล็อกวันพุธ คาบ 7-8)">🎯กิจกรรม</span>' : ''}
                       <span class="opacity-0 group-hover:opacity-100 text-[10px] text-blue-700 transition" title="คลิกเพื่อปรับย้ายละเอียด">✏️</span>
                     </div>
                   </div>
@@ -1868,6 +1896,36 @@
             // ตรวจสอบว่าช่วงนี้ถูกครอบด้วยคาบยาวก่อนหน้าหรือไม่
             const covered = activeLessons.some(l => l.day === day.id && p > l.start_period && p < l.start_period + l.duration);
             if (!covered) {
+              // ตรวจสอบกรณีวันพุธ คาบ 7-8 สำหรับกลุ่มเรียน (ล็อกคาบลูกเสือ ปวช.1 หรือ กิจกรรม ปวช.2, 3, ปวส.4)
+              const grpCat = (currentViewMode === 'group') ? getGroupCategoryJs(currentEntityId) : 'OTHER';
+              if (currentViewMode === 'group' && day.id === 2 && p === 7 && (grpCat === 'VOC_1' || ['VOC_2', 'VOC_3', 'PVS_4'].includes(grpCat))) {
+                const isScout = (grpCat === 'VOC_1');
+                const badgeTitle = isScout ? '🏕️ วิชาลูกเสือวิสามัญ (ปวช.1)' : '🎯 คาบกิจกรรมวิทยาลัย';
+                const badgeSub = isScout ? 'ลูกเสือตามเกณฑ์มาตรฐาน (14:00-16:00)' : 'กิจกรรมองค์การวิชาชีพ/ชมรม (14:00-16:00)';
+                const badgeTag = isScout ? 'ล็อกเวลา ปวช.1 (พุธ 7-8)' : 'ล็อกเวลา ปวช.2, 3, ปวส.4 (พุธ 7-8)';
+                const bgStyle = isScout ? 'bg-emerald-50/90 border-emerald-400 text-emerald-950' : 'bg-sky-50/90 border-sky-400 text-sky-950';
+                const tagStyle = isScout ? 'bg-emerald-700 text-white' : 'bg-sky-700 text-white';
+
+                rowHtml += `
+                  <td colspan="2" class="border-r border-slate-400 p-0.5 align-top">
+                    <div class="h-full min-h-[74px] ${bgStyle} border-2 border-dashed rounded p-1.5 flex flex-col justify-between shadow-2xs">
+                      <div class="font-bold text-[11px] flex items-center justify-between">
+                        <span>${badgeTitle}</span>
+                        <span class="text-[9px] ${tagStyle} px-1.5 py-0.5 rounded font-bold shadow-2xs">${badgeTag}</span>
+                      </div>
+                      <div class="text-[10px] opacity-90 font-medium">
+                        ${badgeSub}
+                      </div>
+                      <div class="text-[9px] opacity-75 font-mono">
+                        🔒 สงวนเวลาคาบกิจกรรมวิทยาลัยตามเงื่อนไข
+                      </div>
+                    </div>
+                  </td>
+                `;
+                p += 2;
+                continue;
+              }
+
               const isCol10 = (p === 10);
               const colBorder = isCol10 ? "border-r-2 border-dashed border-blue-500 bg-blue-50/20" : "border-r border-slate-300";
 
@@ -3026,6 +3084,39 @@
       }
       renderCoursesTab();
       showToast(`✅ ปรับเปลี่ยนครูผู้สอนทุกวิชาเป็น "${tName}" สำเร็จ (${successCount} รายการ)`, 'success', 3500);
+    }
+
+    async function autoAddScoutActivities() {
+      const btn = document.getElementById('btnAutoScoutAct');
+      const origHtml = btn ? btn.innerHTML : '';
+      if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = `<span class="animate-spin text-sm">⏳</span><span>กำลังตั้งค่า...</span>`;
+      }
+      try {
+        const res = await fetch('/api/courses/auto-add-scout-activities', { method: 'POST' });
+        const data = await res.json();
+        if (res.ok && data.is_success) {
+          showToast(`🏕️ ${data.message}`, 'success', 5000);
+          await refreshDataManagerData();
+          renderCoursesTab();
+          try {
+            const resData = await fetch('/api/data');
+            benchmarkData = await resData.json();
+            populateEntitySelect();
+            updateBanner();
+          } catch(e) {}
+        } else {
+          alert('ไม่สามารถดำเนินการได้: ' + (data.detail || data.message || 'เกิดข้อผิดพลาด'));
+        }
+      } catch (e) {
+        alert('เกิดข้อผิดพลาดในการเชื่อมต่อ: ' + e.message);
+      } finally {
+        if (btn) {
+          btn.disabled = false;
+          btn.innerHTML = origHtml;
+        }
+      }
     }
 
     function openAddGroupToCourseModal(assignmentId) {
@@ -4398,6 +4489,24 @@
 
         <!-- Tab 4: Courses & Assignments Panel -->
         <div id="tab-pane-courses" class="hidden space-y-4">
+
+          <!-- Scout & Activity Auto-Assign Bar -->
+          <div class="bg-amber-50/90 border border-amber-300 rounded-lg p-3 flex flex-wrap items-center justify-between gap-3 text-xs shadow-2xs">
+            <div class="flex items-center space-x-2.5">
+              <span class="w-8 h-8 rounded-lg bg-amber-600 text-white flex items-center justify-center font-bold text-base shadow-xs">
+                🏕️
+              </span>
+              <div>
+                <span class="font-bold text-slate-900 text-sm">กำหนดคาบลูกเสือ & กิจกรรมอัตโนมัติ (วันพุธ คาบ 7-8):</span>
+                <p class="text-amber-900 text-[11px] mt-0.5">ล็อกคาบเรียนวิชาลูกเสือวิสามัญ (ปวช.1) และคาบกิจกรรมองค์การวิชาชีพ/ชมรม (ปวช.2, 3, ปวส.4) ลงตารางทุกกลุ่มเรียนตามระเบียบอาชีวศึกษา</p>
+              </div>
+            </div>
+            <div class="flex items-center space-x-2">
+              <button type="button" onclick="autoAddScoutActivities()" id="btnAutoScoutAct" class="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 active:scale-95 text-white font-bold rounded text-xs transition flex items-center space-x-1.5 shadow-xs cursor-pointer">
+                <span>🏕️🎯 เพิ่ม & ล็อกวันพุธ คาบ 7-8 ทันที</span>
+              </button>
+            </div>
+          </div>
           
           <!-- Quick Batch Tool Bar -->
           <div class="bg-indigo-50/70 border border-indigo-200 rounded-lg p-3 flex flex-wrap items-center justify-between gap-3 text-xs">

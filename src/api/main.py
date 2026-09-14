@@ -634,6 +634,16 @@ def api_create_split_theory_practice(payload: SplitTheoryPracticeRequest):
         raise HTTPException(status_code=400, detail=str(e))
 
 
+@app.post("/api/courses/auto-add-scout-activities")
+def api_auto_add_scout_activities():
+    """สร้างและล็อกคาบวิชาลูกเสือ (ปวช.1) และกิจกรรม (ปวช.2, 3, ปวส.4) วันพุธ คาบ 7-8 ให้ทุกกลุ่มเรียน"""
+    try:
+        res = data_manager.auto_add_scout_and_activities()
+        return res
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
 @app.post("/api/solve/current", response_model=SolveResponse)
 def solve_current():
     """จัดตารางตามข้อมูลปัจจุบันใน Data Manager"""

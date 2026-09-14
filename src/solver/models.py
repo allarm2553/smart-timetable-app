@@ -95,4 +95,45 @@ class LessonAssignment:
     component_type: Optional[str] = None         # ประเภทส่วนย่อย: "THEORY", "PRACTICE", หรือ None
     parent_assignment_id: Optional[str] = None   # รหัสวิชาแม่ (สำหรับเชื่อมโยง ทฤษฎี-ปฏิบัติ)
 
+import re
+
+def get_group_year_category(group_name: str, level: str = "VOC_CERT") -> str:
+    """
+    วิเคราะห์ระดับชั้นปีของกลุ่มเรียนตามมาตรฐานอาชีวศึกษา:
+    - 'VOC_1': ปวช.1 (เช่น ชอ.1/1, 1/1, ปวช.1)
+    - 'VOC_2': ปวช.2 (เช่น ชอ.2/1, 2/1, ปวช.2)
+    - 'VOC_3': ปวช.3 (เช่น ชอ.3/1, 3/1, ปวช.3)
+    - 'PVS_4': ปวส.4 หรือ ปวส.1/2 (เช่น ชอ.4/1, 4/1, ปวส.4, ปวส.1, ปวส.)
+    - 'OTHER': อื่นๆ
+    """
+    g_name = (group_name or "").strip()
+    lvl = (level or "").upper() if isinstance(level, str) else str(level).upper()
+
+    if "ปวส.4" in g_name or "ปวส. 4" in g_name or re.search(r'(?:^|[^\d])4\s*\/', g_name) or "ปวส.1" in g_name or "ปวส. 1" in g_name or "ปวส.2" in g_name or "ปวส. 2" in g_name or re.search(r'(?:^|[^\d])5\s*\/', g_name) or "HIGH_VOC_CERT" in lvl or "ปวส" in g_name:
+        return "PVS_4"
+    if "ปวช.1" in g_name or "ปวช. 1" in g_name or "ปี 1" in g_name or re.search(r'(?:^|[^\d])1\s*\/', g_name):
+        return "VOC_1"
+    if "ปวช.2" in g_name or "ปวช. 2" in g_name or "ปี 2" in g_name or re.search(r'(?:^|[^\d])2\s*\/', g_name):
+        return "VOC_2"
+    if "ปวช.3" in g_name or "ปวช. 3" in g_name or "ปี 3" in g_name or re.search(r'(?:^|[^\d])3\s*\/', g_name):
+        return "VOC_3"
+    return "OTHER"
+
+def is_scout_assignment(course_name: str, course_code: str = "") -> bool:
+    """ตรวจสอบว่าเป็นวิชาลูกเสือวิสามัญหรือไม่"""
+    name = (course_name or "").lower()
+    code = (course_code or "").lower()
+    return "ลูกเสือ" in name or "scout" in name or "20000-2001" in code or "20000-2002" in code
+
+def is_activity_assignment(course_name: str, course_code: str = "") -> bool:
+    """ตรวจสอบว่าเป็นวิชากิจกรรม (องค์การวิชาชีพ / ชมรม) หรือไม่"""
+    name = (course_name or "").lower()
+    code = (course_code or "").lower()
+    if is_scout_assignment(course_name, course_code):
+        return False
+    return (
+        "กิจกรรม" in name or "activity" in name or "ชมรม" in name or 
+        "องค์การวิชาชีพ" in name or "20000-200" in code or "30000-200" in code
+    )
+
 

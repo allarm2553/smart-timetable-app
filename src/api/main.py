@@ -644,6 +644,17 @@ def api_auto_add_scout_activities():
         raise HTTPException(status_code=400, detail=str(e))
 
 
+@app.post("/api/assignments/sort")
+def api_sort_assignments():
+    """จัดเรียงแผนการสอนตามกลุ่มเรียนและรหัสวิชา (Natural Sort)"""
+    try:
+        data_manager.sort_assignments()
+        data_manager._save()
+        return {"is_success": True, "message": "จัดเรียงแผนการสอนตามรหัสวิชาเรียบร้อยแล้ว"}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
 @app.post("/api/solve/current", response_model=SolveResponse)
 def solve_current():
     """จัดตารางตามข้อมูลปัจจุบันใน Data Manager"""

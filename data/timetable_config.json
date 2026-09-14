@@ -1,7 +1,45 @@
 {
-  "teachers": [],
+  "teachers": [
+    {
+      "id": "T_AUTO_1",
+      "name": "ครูทดสอบพิเศษ",
+      "max_periods_per_day": 6,
+      "max_periods_per_week": 24,
+      "unavailable_slots": []
+    }
+  ],
   "rooms": [],
-  "groups": [],
-  "courses": {},
-  "assignments": []
+  "groups": [
+    {
+      "id": "G_AUTO_1",
+      "name": "ชอ.1/1",
+      "level": "VOC_CERT",
+      "student_count": 20,
+      "pvs_18_weeks": true,
+      "is_internship": false
+    }
+  ],
+  "courses": {
+    "C_20101_9901_G_AUTO_1": {
+      "id": "C_20101_9901_G_AUTO_1",
+      "name": "วิชาทดสอบนำเข้าใหม่",
+      "code": "20101-9901",
+      "course_type": "ROTATION_BASE",
+      "periods_per_session": 4,
+      "sessions_per_week": 1,
+      "required_room_type": "LAB_ENGINE",
+      "allow_merge": false,
+      "base_id": "BASE_20101_9901"
+    }
+  },
+  "assignments": [
+    {
+      "id": "ASS_20101_9901_G_AUTO_1",
+      "course_id": "C_20101_9901_G_AUTO_1",
+      "primary_group_id": "G_AUTO_1",
+      "teacher_id": "T_AUTO_1",
+      "secondary_group_id": null,
+      "is_rotation": true
+    }
+  ]
 }

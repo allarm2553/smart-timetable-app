@@ -571,6 +571,17 @@ class BulkDataImporter:
 
             imported_count += 1
 
+        # Sort assignments by group and course code using natural sorting
+        def natural_course_sort_key(ass):
+            cid = ass.get("course_id", "")
+            c = courses.get(cid, {})
+            code = c.get("code", "") or cid
+            chunks = re.split(r'(\d+)', str(code).strip())
+            parsed_chunks = [(0, int(ch)) if ch.isdigit() else (1, ch.lower()) for ch in chunks if ch]
+            return (ass.get("primary_group_id", ""), parsed_chunks)
+
+        assignments.sort(key=natural_course_sort_key)
+
         # Commit updates to data manager
         data_manager.teachers = teachers
         data_manager.groups = groups

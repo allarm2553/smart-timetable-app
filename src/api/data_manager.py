@@ -69,6 +69,20 @@ class TimetableDataManager:
                 clean_assignments.append(a)
         
         self.assignments = clean_assignments
+        self.sort_assignments()
+
+    def sort_assignments(self):
+        """จัดเรียงรายการแผนการสอนตามกลุ่มเรียนและรหัสวิชา (Natural Sort)"""
+        import re
+        def get_sort_key(ass):
+            cid = ass.get("course_id", "")
+            c = self.courses.get(cid, {})
+            code = c.get("code", "") or cid
+            chunks = re.split(r'(\d+)', str(code).strip())
+            parsed_chunks = [(0, int(ch)) if ch.isdigit() else (1, ch.lower()) for ch in chunks if ch]
+            return (ass.get("primary_group_id", ""), parsed_chunks)
+
+        self.assignments.sort(key=get_sort_key)
 
     def _save(self):
         cfg_file = get_config_file_path()

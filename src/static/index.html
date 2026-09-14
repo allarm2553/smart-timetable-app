@@ -2846,6 +2846,33 @@
     }
 
     // --- Courses & Assignments CRUD JS ---
+    let coursesSortMode = 'code'; // 'code' | 'group'
+    let coursesSortAsc = true;
+
+    function setCoursesSortMode(mode) {
+      if (coursesSortMode === mode) {
+        coursesSortAsc = !coursesSortAsc;
+      } else {
+        coursesSortMode = mode;
+        coursesSortAsc = true;
+      }
+      renderCoursesTab();
+    }
+
+    async function reorderDatabaseAssignments() {
+      try {
+        const res = await fetch('/api/assignments/sort', { method: 'POST' });
+        const data = await res.json();
+        if (res.ok) {
+          showToast('🔢 ' + data.message, 'success', 3000);
+          await refreshDataManagerData();
+          renderCoursesTab();
+        }
+      } catch(e) {
+        alert("ข้อผิดพลาด: " + e.message);
+      }
+    }
+
     function renderCoursesTab() {
       if (!fullDataManagerData) return;
       const tbody = document.getElementById('tbodyCourses');
@@ -2855,6 +2882,23 @@
       fullDataManagerData.groups.forEach(g => groupMap[g.id] = g.name);
       const teacherMap = {};
       fullDataManagerData.teachers.forEach(t => teacherMap[t.id] = t.name);
+
+      // Update sort button styling
+      const btnCode = document.getElementById('btnSortByCode');
+      const btnGroup = document.getElementById('btnSortByGroup');
+      if (btnCode && btnGroup) {
+        if (coursesSortMode === 'code') {
+          btnCode.className = "px-2.5 py-1 bg-indigo-600 text-white rounded font-bold transition flex items-center space-x-1 shadow-2xs cursor-pointer";
+          btnCode.innerHTML = `<span>🔢 เรียงตามรหัสวิชา ${coursesSortAsc ? '▲' : '▼'}</span>`;
+          btnGroup.className = "px-2.5 py-1 bg-white hover:bg-slate-200 text-slate-700 border border-slate-300 rounded font-medium transition flex items-center space-x-1 shadow-2xs cursor-pointer";
+          btnGroup.innerHTML = `<span>👥 เรียงตามกลุ่มเรียน</span>`;
+        } else {
+          btnGroup.className = "px-2.5 py-1 bg-indigo-600 text-white rounded font-bold transition flex items-center space-x-1 shadow-2xs cursor-pointer";
+          btnGroup.innerHTML = `<span>👥 เรียงตามกลุ่มเรียน ${coursesSortAsc ? '▲' : '▼'}</span>`;
+          btnCode.className = "px-2.5 py-1 bg-white hover:bg-slate-200 text-slate-700 border border-slate-300 rounded font-medium transition flex items-center space-x-1 shadow-2xs cursor-pointer";
+          btnCode.innerHTML = `<span>🔢 เรียงตามรหัสวิชา</span>`;
+        }
+      }
 
       // Populate batch tools dropdowns
       const batchGrp = document.getElementById('batchGroupSelect');
@@ -2871,7 +2915,31 @@
           fullDataManagerData.teachers.map(t => `<option value="${t.id}" ${t.id === curVal ? 'selected' : ''}>${t.name}</option>`).join('');
       }
 
-      tbody.innerHTML = fullDataManagerData.assignments.map(a => {
+      // Sort assignments: Natural sorting by Course Code or Group
+      const sortedAssignments = [...(fullDataManagerData.assignments || [])].sort((a, b) => {
+        const cA = courseMap[a.course_id];
+        const cB = courseMap[b.course_id];
+        const codeA = cA?.code || a.course_id || '';
+        const codeB = cB?.code || b.course_id || '';
+        const grpA = groupMap[a.primary_group_id] || a.primary_group_id || '';
+        const grpB = groupMap[b.primary_group_id] || b.primary_group_id || '';
+
+        let diff = 0;
+        if (coursesSortMode === 'group') {
+          diff = grpA.localeCompare(grpB, 'th', { numeric: true });
+          if (diff === 0) {
+            diff = codeA.localeCompare(codeB, 'th', { numeric: true });
+          }
+        } else {
+          diff = codeA.localeCompare(codeB, 'th', { numeric: true });
+          if (diff === 0) {
+            diff = grpA.localeCompare(grpB, 'th', { numeric: true });
+          }
+        }
+        return coursesSortAsc ? diff : -diff;
+      });
+
+      tbody.innerHTML = sortedAssignments.map(a => {
         const c = courseMap[a.course_id];
         const code = c?.code || a.course_id;
         const name = c?.name || '';
@@ -4557,15 +4625,36 @@
             </div>
           </div>
 
-          <div class="border border-slate-300 rounded-lg overflow-hidden">
+          <div class="border border-slate-300 rounded-lg overflow-hidden shadow-2xs">
+            <!-- Sort & Organize Toolbar -->
+            <div class="bg-slate-100/90 px-3 py-2 border-b border-slate-300 flex flex-wrap items-center justify-between gap-2 text-xs">
+              <div class="flex items-center space-x-2">
+                <span class="font-bold text-slate-700">การจัดเรียง:</span>
+                <button type="button" onclick="setCoursesSortMode('code')" id="btnSortByCode" class="px-2.5 py-1 bg-indigo-600 text-white rounded font-bold transition flex items-center space-x-1 shadow-2xs cursor-pointer">
+                  <span>🔢 เรียงตามรหัสวิชา (ค่าเริ่มต้น)</span>
+                </button>
+                <button type="button" onclick="setCoursesSortMode('group')" id="btnSortByGroup" class="px-2.5 py-1 bg-white hover:bg-slate-200 text-slate-700 border border-slate-300 rounded font-medium transition flex items-center space-x-1 shadow-2xs cursor-pointer">
+                  <span>👥 เรียงตามกลุ่มเรียน</span>
+                </button>
+              </div>
+              <div>
+                <button type="button" onclick="reorderDatabaseAssignments()" class="px-2.5 py-1 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded font-medium transition flex items-center space-x-1 text-[11px] cursor-pointer" title="บันทึกลำดับตามรหัสวิชาลงฐานข้อมูล">
+                  <span>💾 บันทึกลำดับรหัสวิชาลงฐานข้อมูล</span>
+                </button>
+              </div>
+            </div>
             <table class="w-full text-left">
               <thead class="bg-slate-100 border-b border-slate-300 text-slate-700 font-display font-bold">
                 <tr>
-                  <th class="py-2.5 px-3">รหัสวิชา</th>
+                  <th class="py-2.5 px-3 cursor-pointer hover:text-indigo-600 transition select-none" onclick="setCoursesSortMode('code')" title="คลิกเพื่อสลับเรียง รหัสวิชา">
+                    รหัสวิชา <span class="text-[10px] text-indigo-600">↕</span>
+                  </th>
                   <th class="py-2.5 px-3">ชื่อรายวิชา</th>
                   <th class="py-2.5 px-3">ประเภท</th>
                   <th class="py-2.5 px-3">จำนวนคาบ</th>
-                  <th class="py-2.5 px-3 min-w-[170px]">กลุ่มผู้เรียน (เลือกได้)</th>
+                  <th class="py-2.5 px-3 min-w-[170px] cursor-pointer hover:text-indigo-600 transition select-none" onclick="setCoursesSortMode('group')" title="คลิกเพื่อสลับเรียง กลุ่มเรียน">
+                    กลุ่มผู้เรียน (เลือกได้) <span class="text-[10px] text-indigo-600">↕</span>
+                  </th>
                   <th class="py-2.5 px-3 min-w-[170px]">ครูผู้สอน (เลือกได้)</th>
                   <th class="py-2.5 px-3 text-right">การจัดการ</th>
                 </tr>

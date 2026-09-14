@@ -429,6 +429,34 @@ def test_multiple_groups_per_course_with_different_teachers():
     data_manager.reset_to_default()
     print("✅ test_multiple_groups_per_course_with_different_teachers passed")
 
+def test_process_import_sorts_by_course_code():
+    data_manager.reset_to_default()
+    csv_scrambled = """รหัสวิชา,ชื่อวิชา,ประเภทวิชา,จำนวนคาบ,ประเภทห้อง,ครูผู้สอน,กลุ่มผู้เรียน,กลุ่มเรียนรวม,หมุนเวียนฐาน
+30101-2001,วิชา C ปวส,practice,4,lab,อ. สมคิด,ชอ.1/1,,
+20000-1101,วิชา A พื้นฐาน,theory,2,classroom,อ. สมชาย,ชอ.1/1,,
+20101-2001,วิชา B ช่างยนต์,practice,3,lab,อ. สมศักดิ์,ชอ.1/1,,
+"""
+    b64_content = base64.b64encode(csv_scrambled.encode("utf-8")).decode("utf-8")
+    payload = {
+        "filename": "scrambled_courses.csv",
+        "content_base64": b64_content,
+        "mode": "replace"
+    }
+    res = client.post("/api/import/process", json=payload)
+    assert res.status_code == 200
+
+    all_data = data_manager.get_all_data()
+    course_map = {c["id"]: c for c in all_data["courses"]}
+    imported_codes = [course_map[a["course_id"]]["code"] for a in all_data["assignments"]]
+
+    assert imported_codes == ["20000-1101", "20101-2001", "30101-2001"], f"Assignments should be sorted by code, got: {imported_codes}"
+
+    # Test sorting API endpoint
+    res_sort = client.post("/api/assignments/sort")
+    assert res_sort.status_code == 200
+    assert res_sort.json()["is_success"] is True
+    print("✅ test_process_import_sorts_by_course_code passed")
+
 if __name__ == "__main__":
     orig_data = data_manager.get_all_data()
     try:
@@ -443,6 +471,7 @@ if __name__ == "__main__":
         test_theory_practice_course_type()
         test_inline_group_and_teacher_assignment()
         test_multiple_groups_per_course_with_different_teachers()
+        test_process_import_sorts_by_course_code()
         print("\n🎉 ALL BULK IMPORTER TESTS PASSED SUCCESSFULLY! 🎉")
     finally:
         data_manager.teachers = orig_data["teachers"]

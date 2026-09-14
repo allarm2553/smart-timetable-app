@@ -3408,7 +3408,7 @@
         }
       } catch (err) {
         console.error(err);
-        alert('เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์');
+        showToast('⚠️ การเชื่อมต่อเซิร์ฟเวอร์ขัดข้อง (ระบบอาจกำลังรีสตาร์ท): ' + (err.message || ''), 'error', 6000);
       } finally {
         btn.disabled = false;
         btn.innerHTML = origHtml;

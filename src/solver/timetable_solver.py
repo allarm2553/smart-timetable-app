@@ -79,7 +79,8 @@ class TimetableSolver:
     def build_model(self):
         # 1. สร้างตัวแปรเวลาเริ่มต้นและครองคาบเรียน
         for a_id, a in self.assignments.items():
-            duration = a.course.periods_per_session
+            # คาบเรียนต่อเนื่องสูงสุดใน 1 รอบการสอนไม่เกิน 5 คาบ (ไม่คร่อมพักเที่ยงและไม่เกิน 17:00)
+            duration = min(5, max(1, a.course.periods_per_session))
             valid_start_periods = self.periods_per_day - duration + 1
 
             primary_grp = self.groups[a.primary_group_id]
@@ -478,7 +479,8 @@ class TimetableSolver:
         for a_id, a in self.assignments.items():
             chosen_day = -1
             chosen_start_period = -1
-            valid_start_periods = self.periods_per_day - a.course.periods_per_session + 1
+            dur = min(5, max(1, a.course.periods_per_session))
+            valid_start_periods = self.periods_per_day - dur + 1
             for d in range(self.days):
                 for p in range(valid_start_periods):
                     if (a_id, d, p) in self.starts and self.solver.BooleanValue(self.starts[a_id, d, p]):
@@ -501,7 +503,7 @@ class TimetableSolver:
                 "assignment": a,
                 "day": chosen_day,
                 "start_period": chosen_start_period,
-                "duration": a.course.periods_per_session,
+                "duration": dur,
                 "room": None,
                 "teacher": self.teachers[a.teacher_id],
                 "secondary_teacher": self.teachers.get(a.secondary_teacher_id) if a.secondary_teacher_id else None,

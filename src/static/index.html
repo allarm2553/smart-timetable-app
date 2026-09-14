@@ -2459,6 +2459,8 @@
 
     function closeDataManagerModal() {
       document.getElementById('dataManagerModal').classList.add('hidden');
+      if (typeof populateEntitySelect === 'function') populateEntitySelect();
+      if (typeof updateBanner === 'function') updateBanner();
     }
 
     function switchDataTab(tab) {
@@ -3401,9 +3403,15 @@
         if (res.ok && data.is_success) {
           closeSplitTheoryPracticeModal();
           await refreshDataManagerData();
-          await saveAndSolveCurrent();
+          try {
+            const resData = await fetch('/api/data');
+            benchmarkData = await resData.json();
+            populateEntitySelect();
+            updateBanner();
+            saveStateToLocalStorage();
+          } catch(e) {}
           const modeLabel = teaching_mode === 'SINGLE' ? 'ผู้สอนคนเดียว' : 'สอนร่วม 2 อาจารย์';
-          showToast(`🌟 แปลงเป็นวิชาทฤษฎีรวมและปฏิบัติแยกกลุ่ม (${modeLabel}) เรียบร้อยแล้ว!`, 'success', 4000);
+          showToast(`🌟 แปลงเป็นวิชาทฤษฎีรวมและปฏิบัติแยกกลุ่ม (${modeLabel}) เรียบร้อยแล้ว (กด 'สร้างตารางใหม่' เมื่อพร้อม)`, 'success', 4000);
         } else {
           alert('ไม่สามารถสร้างได้: ' + (data.detail || data.message || 'เกิดข้อผิดพลาด'));
         }
@@ -3595,6 +3603,73 @@
         }
       } catch (err) {
         alert("เกิดข้อผิดพลาด: " + err.message);
+      }
+    }
+
+    async function saveCurrentDataOnly() {
+      // 1. ตรวจสอบและบันทึกข้อมูลค้างกรอกในฟอร์มของแท็บที่กำลังเปิดอยู่ (Auto-save pending fields)
+      if (currentDataTab === 'groups') {
+        const nameVal = document.getElementById('newGroupName')?.value?.trim();
+        if (nameVal) {
+          const ok = await handleAddGroup();
+          if (!ok) return;
+        }
+      } else if (currentDataTab === 'rooms') {
+        const nameVal = document.getElementById('newRoomName')?.value?.trim();
+        if (nameVal) {
+          const ok = await handleAddRoom();
+          if (!ok) return;
+        }
+      } else if (currentDataTab === 'teachers') {
+        const nameVal = document.getElementById('newTeacherName')?.value?.trim();
+        if (nameVal) {
+          const ok = await handleAddTeacher();
+          if (!ok) return;
+        }
+      }
+
+      const btn = document.getElementById('btnSaveOnly');
+      const oldHtml = btn ? btn.innerHTML : '';
+      if (btn) {
+        btn.innerHTML = `<span class="animate-spin mr-1">⏳</span> กำลังบันทึก...`;
+        btn.disabled = true;
+      }
+
+      try {
+        // ดึงข้อมูลล่าสุดจากเซิร์ฟเวอร์มาอัปเดต state ของระบบ
+        const resData = await fetch('/api/data');
+        if (!resData.ok) {
+          throw new Error('ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์เพื่อดึงข้อมูลล่าสุดได้');
+        }
+        benchmarkData = await resData.json();
+        await refreshDataManagerData();
+
+        populateEntitySelect();
+        updateBanner();
+        saveStateToLocalStorage();
+
+        // แสดงการแจ้งเตือนชัดเจนว่าบันทึกแล้ว ยังไม่สร้างตาราง
+        showToast("💾 บันทึกข้อมูลระบบเรียบร้อยแล้ว (ยังไม่ได้ประมวลผลจัดตารางใหม่ ท่านสามารถกรอกข้อมูลต่อ หรือกด 'สร้างตารางใหม่' เมื่อพร้อม)", "success", 4500);
+
+        const statusEl = document.getElementById('statusInfo');
+        if (statusEl) {
+          statusEl.textContent = "สถานะ: บันทึกข้อมูลระบบแล้ว (รอสร้างตารางใหม่)";
+        }
+
+        if (btn) {
+          btn.innerHTML = `<i data-lucide="check" class="w-4 h-4 text-white"></i><span>บันทึกเรียบร้อย</span>`;
+          if (window.lucide) lucide.createIcons();
+        }
+      } catch (err) {
+        alert("เกิดข้อผิดพลาดในการบันทึกข้อมูล: " + err.message);
+      } finally {
+        setTimeout(() => {
+          if (btn) {
+            btn.innerHTML = oldHtml;
+            btn.disabled = false;
+            if (window.lucide) lucide.createIcons();
+          }
+        }, 2000);
       }
     }
 
@@ -4049,8 +4124,14 @@
         if (res.ok && data.is_success) {
           closeEditEntityModal();
           await refreshDataManagerData();
-          showToast('บันทึกการแก้ไขข้อมูลเรียบร้อยแล้ว กำลังจัดตารางใหม่...', 'info', 2500);
-          await saveAndSolveCurrent();
+          try {
+            const resData = await fetch('/api/data');
+            benchmarkData = await resData.json();
+            populateEntitySelect();
+            updateBanner();
+            saveStateToLocalStorage();
+          } catch (e) {}
+          showToast('✅ บันทึกการแก้ไขข้อมูลเรียบร้อยแล้ว (ยังไม่ได้จัดตารางใหม่)', 'success', 3000);
         } else {
           alert('ไม่สามารถบันทึกการแก้ไขได้: ' + (data.detail || 'ข้อผิดพลาด'));
         }
@@ -4464,12 +4545,16 @@
         </div>
 
         <div class="flex items-center space-x-2.5">
-          <button onclick="closeDataManagerModal()" class="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded font-display transition">
+          <button onclick="closeDataManagerModal()" class="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded font-display transition cursor-pointer">
             ปิด
           </button>
-          <button id="btnSaveSolve" onclick="saveAndSolveCurrent()" class="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded font-display transition shadow-xs flex items-center space-x-1.5">
+          <button id="btnSaveOnly" onclick="saveCurrentDataOnly()" class="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded font-display transition shadow-xs flex items-center space-x-1.5 cursor-pointer" title="บันทึกข้อมูลทั้งหมดลงระบบโดยยังไม่ประมวลผลจัดตาราง (เหมาะสำหรับกรณียังกรอกข้อมูลไม่เสร็จ)">
+            <i data-lucide="save" class="w-4 h-4"></i>
+            <span>บันทึกข้อมูล (ยังไม่สร้างตาราง)</span>
+          </button>
+          <button id="btnSaveSolve" onclick="saveAndSolveCurrent()" class="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded font-display transition shadow-xs flex items-center space-x-1.5 cursor-pointer" title="บันทึกข้อมูลและประมวลผลสร้างตารางเรียนตารางสอนใหม่ทันที">
             <i data-lucide="sparkles" class="w-4 h-4"></i>
-            <span>บันทึกและจัดตารางใหม่</span>
+            <span>สร้างตารางใหม่</span>
           </button>
         </div>
       </div>

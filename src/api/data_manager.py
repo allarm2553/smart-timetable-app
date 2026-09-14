@@ -6,7 +6,8 @@ from typing import Dict, List, Any, Optional
 from src.solver.models import (
     Teacher, Room, StudentGroup, Course, LessonAssignment,
     EducationLevel, CourseType, RoomType,
-    get_group_year_category, is_scout_assignment, is_activity_assignment
+    get_group_year_category, is_scout_assignment, is_activity_assignment,
+    group_sort_key
 )
 from src.solver.benchmark_data import get_benchmark_dataset
 
@@ -72,15 +73,22 @@ class TimetableDataManager:
         self.sort_assignments()
 
     def sort_assignments(self):
-        """จัดเรียงรายการแผนการสอนตามกลุ่มเรียนและรหัสวิชา (Natural Sort)"""
+        """จัดเรียงกลุ่มเรียนและแผนการสอนตามปี/ระดับการศึกษา (เช่น ปวช 2.2569, 2.2570, 1.2571, 2.2571) และรหัสวิชา (Natural Sort)"""
         import re
+        # จัดเรียงกลุ่มเรียนตามปี/ระดับการศึกษา
+        self.groups.sort(key=lambda g: group_sort_key(g.get("name", ""), g.get("id", "")))
+        group_map = {g["id"]: g for g in self.groups}
+
         def get_sort_key(ass):
+            gid = ass.get("primary_group_id", "")
+            g = group_map.get(gid, {})
+            g_key = group_sort_key(g.get("name", gid), gid)
             cid = ass.get("course_id", "")
             c = self.courses.get(cid, {})
             code = c.get("code", "") or cid
             chunks = re.split(r'(\d+)', str(code).strip())
             parsed_chunks = [(0, int(ch)) if ch.isdigit() else (1, ch.lower()) for ch in chunks if ch]
-            return (ass.get("primary_group_id", ""), parsed_chunks)
+            return (g_key, parsed_chunks)
 
         self.assignments.sort(key=get_sort_key)
 

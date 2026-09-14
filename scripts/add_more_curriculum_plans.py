@@ -62,11 +62,11 @@ def add_additional_curriculum_plans():
     existing_group_ids = {g["id"] for g in groups}
 
     new_plans = [
-        (files["PVC"], "2.2570", "G_CHO_2_1", "ชอ.2/1 (ปวช.2)", "VOC_CERT", False),
-        (files["PVC"], "1.2571", "G_CHO_3_1", "ชอ.3/1 (ปวช.3)", "VOC_CERT", False),
-        (files["PVC"], "2.2571", "G_CHO_3_2", "ชอ.3/2 (ปวช.3 ฝึกงาน)", "VOC_CERT", True),
-        (files["PVS"], "2.2570", "G_PVS_2_1", "ชอ.5/1 (ปวส.2 ทวิ ฝึกงาน)", "HIGH_VOC_CERT", True),
-        (files["PVS_M6"], "2.2570", "G_PVS_M6_2_1", "ชอ.5/2 (ปวส.2 ม.6 ทวิ ฝึกงาน)", "HIGH_VOC_CERT", True)
+        (files["PVC"], "2.2570", "G_CHO_2_1", "ปวช 2.2570 (ปวช.2 ชอ.2/1)", "VOC_CERT", False),
+        (files["PVC"], "1.2571", "G_CHO_3_1", "ปวช 1.2571 (ปวช.3 ชอ.3/1)", "VOC_CERT", False),
+        (files["PVC"], "2.2571", "G_CHO_3_2", "ปวช 2.2571 (ปวช.3 ฝึกงาน)", "VOC_CERT", True),
+        (files["PVS"], "2.2570", "G_PVS_2_1", "ปวส 2.2570 (ปวส.2 ทวิ ฝึกงาน)", "HIGH_VOC_CERT", True),
+        (files["PVS_M6"], "2.2570", "G_PVS_M6_2_1", "ปวส ม.6 2.2570 (ปวส.2 ฝึกงาน)", "HIGH_VOC_CERT", True)
     ]
 
     for fpath, sname, gid, gname, level, is_intern in new_plans:
@@ -219,6 +219,23 @@ def add_additional_curriculum_plans():
                         })
                         existing_ass_ids.add(aid)
                         ass_counter += 1
+
+    from src.solver.models import group_sort_key
+    groups.sort(key=lambda g: group_sort_key(g.get("name", ""), g.get("id", "")))
+    group_map = {g["id"]: g for g in groups}
+
+    def get_sort_key(ass):
+        gid = ass.get("primary_group_id", "")
+        g = group_map.get(gid, {})
+        g_key = group_sort_key(g.get("name", gid), gid)
+        cid = ass.get("course_id", "")
+        c = courses_dict.get(cid, {})
+        code = c.get("code", "") or cid
+        chunks = re.split(r'(\d+)', str(code).strip())
+        parsed_chunks = [(0, int(ch)) if ch.isdigit() else (1, ch.lower()) for ch in chunks if ch]
+        return (g_key, parsed_chunks)
+
+    assignments.sort(key=get_sort_key)
 
     config["teachers"] = teachers
     config["rooms"] = rooms

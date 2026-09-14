@@ -9,7 +9,7 @@ import re
 import openpyxl
 from typing import Dict, Any, List, Tuple, Optional
 
-from src.solver.models import CourseType, RoomType, EducationLevel
+from src.solver.models import CourseType, RoomType, EducationLevel, group_sort_key
 
 class BulkDataImporter:
     TEMPLATE_HEADERS = [
@@ -145,7 +145,10 @@ class BulkDataImporter:
             wb = openpyxl.load_workbook(io.BytesIO(file_bytes), data_only=True)
             dict_rows = []
 
-            for sheet_name in wb.sheetnames:
+            # จัดเรียงลำดับชีทตามปีการศึกษา (เช่น 1.2569, 2.2569, 2.2570, 1.2571, 2.2571)
+            target_sheets = sorted(wb.sheetnames, key=lambda s: group_sort_key(s))
+
+            for sheet_name in target_sheets:
                 ws = wb[sheet_name]
                 if not ws.max_row or ws.max_row < 1:
                     continue
@@ -508,13 +511,80 @@ class BulkDataImporter:
                     new_groups_count += 1
             else:
                 sheet_name = row.get("_sheet_name", "")
-                matched_g = next((g for g in groups if g["name"].strip() == sheet_name or sheet_name in g["name"]), None) if sheet_name else None
-                if matched_g:
-                    primary_group_id = matched_g["id"]
-                elif groups:
-                    primary_group_id = groups[0]["id"]
+                sem_match = re.search(r'(\d|S|s)\.(25\d{2}|\d{2})', sheet_name)
+                if sem_match:
+                    term_str = sem_match.group(1).upper()
+                    yr_raw = sem_match.group(2)
+                    yr_full = yr_raw if len(yr_raw) == 4 else f"25{yr_raw}"
+
+                    fn_lower = filename.lower()
+                    sn_lower = sheet_name.lower()
+                    is_pvs = any(k in fn_lower or k in sn_lower for k in ["ปวส", "pvs"])
+                    is_m6 = any(k in fn_lower or k in sn_lower for k in ["ม.6", "m.6", "m6"])
+
+                    if is_pvs:
+                        lvl = "HIGH_VOC_CERT"
+                        p_prefix = "ปวส ม.6" if is_m6 else "ปวส"
+                        g_code_pref = "PVS_M6" if is_m6 else "PVS"
+                    else:
+                        lvl = "VOC_CERT"
+                        p_prefix = "ปวช"
+                        g_code_pref = "PVC"
+
+                    # Class year tag
+                    if yr_full == "2569":
+                        yr_tag = "ปวช.1" if lvl == "VOC_CERT" else "ปวส.1"
+                    elif yr_full == "2570":
+                        yr_tag = "ปวช.2" if lvl == "VOC_CERT" else "ปวส.2"
+                    elif yr_full == "2571":
+                        yr_tag = "ปวช.3"
+                    else:
+                        yr_tag = ""
+
+                    is_intern = (term_str == "2" and yr_full == "2571") or (term_str == "2" and yr_full == "2570" and lvl == "HIGH_VOC_CERT") or "ฝึกงาน" in sheet_name
+                    intern_tag = " ฝึกงาน" if is_intern else ""
+
+                    target_gname = f"{p_prefix} {term_str}.{yr_full}"
+                    if yr_tag:
+                        full_gname = f"{target_gname} ({yr_tag}{intern_tag})"
+                    else:
+                        full_gname = f"{target_gname}{intern_tag}"
+
+                    gid = f"G_{g_code_pref}_{term_str}_{yr_full}"
+
+                    matched_g = next((g for g in groups if g["id"] == gid or g["name"] == full_gname or sheet_name in g["name"]), None)
+                    if matched_g:
+                        primary_group_id = matched_g["id"]
+                    else:
+                        primary_group_id = gid
+                        new_g = {
+                            "id": primary_group_id,
+                            "name": full_gname,
+                            "level": lvl,
+                            "student_count": 20,
+                            "pvs_18_weeks": True,
+                            "is_internship": is_intern
+                        }
+                        groups.append(new_g)
+                        new_groups_count += 1
                 else:
-                    primary_group_id = "G_DEFAULT"
+                    matched_g = next((g for g in groups if g["name"].strip() == sheet_name or sheet_name in g["name"]), None) if sheet_name else None
+                    if matched_g:
+                        primary_group_id = matched_g["id"]
+                    elif groups:
+                        primary_group_id = groups[0]["id"]
+                    else:
+                        primary_group_id = "G_DEFAULT"
+                        if not any(g["id"] == "G_DEFAULT" for g in groups):
+                            groups.append({
+                                "id": "G_DEFAULT",
+                                "name": "กลุ่มเรียนทั่วไป",
+                                "level": "VOC_CERT",
+                                "student_count": 20,
+                                "pvs_18_weeks": True,
+                                "is_internship": False
+                            })
+                            new_groups_count += 1
 
             # Match or Create Secondary Group (if any)
             secondary_group_id = None
@@ -571,14 +641,21 @@ class BulkDataImporter:
 
             imported_count += 1
 
-        # Sort assignments by group and course code using natural sorting
+        # Sort groups chronologically by Year and Level
+        groups.sort(key=lambda g: group_sort_key(g.get("name", ""), g.get("id", "")))
+        group_map = {g["id"]: g for g in groups}
+
+        # Sort assignments by group (Year/Level) and then naturally by course code
         def natural_course_sort_key(ass):
+            gid = ass.get("primary_group_id", "")
+            g = group_map.get(gid, {})
+            g_key = group_sort_key(g.get("name", gid), gid)
             cid = ass.get("course_id", "")
             c = courses.get(cid, {})
             code = c.get("code", "") or cid
             chunks = re.split(r'(\d+)', str(code).strip())
             parsed_chunks = [(0, int(ch)) if ch.isdigit() else (1, ch.lower()) for ch in chunks if ch]
-            return (ass.get("primary_group_id", ""), parsed_chunks)
+            return (g_key, parsed_chunks)
 
         assignments.sort(key=natural_course_sort_key)
 

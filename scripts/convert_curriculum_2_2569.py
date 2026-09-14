@@ -41,7 +41,7 @@ def convert_curriculum_semester_2_2569():
     groups = [
         {
             "id": "G_CHO_1_1",
-            "name": "ชอ.1/1 (ปวช.1 อิเล็กทรอนิกส์)",
+            "name": "ปวช 2.2569 (ปวช.1 ชอ.1/1)",
             "level": "VOC_CERT",
             "student_count": 25,
             "pvs_18_weeks": True,
@@ -49,7 +49,7 @@ def convert_curriculum_semester_2_2569():
         },
         {
             "id": "G_PVS_1",
-            "name": "ชอ.4/1 (ปวส.1 ทวิภาคี)",
+            "name": "ปวส 2.2569 (ปวส.1 ทวิ ชอ.4/1)",
             "level": "HIGH_VOC_CERT",
             "student_count": 20,
             "pvs_18_weeks": True,
@@ -57,7 +57,7 @@ def convert_curriculum_semester_2_2569():
         },
         {
             "id": "G_PVS_M6_1",
-            "name": "ชอ.4/2 (ปวส.1 ม.6 ทวิ)",
+            "name": "ปวส ม.6 2.2569 (ปวส.1 ม.6 ชอ.4/2)",
             "level": "HIGH_VOC_CERT",
             "student_count": 20,
             "pvs_18_weeks": True,

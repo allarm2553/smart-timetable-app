@@ -914,7 +914,8 @@
 
       let items = [];
       if (currentViewMode === 'group') {
-        items = benchmarkData.groups.map(g => ({
+        const sortedGroups = [...benchmarkData.groups].sort((a, b) => groupSortKey(a.name, a.id).localeCompare(groupSortKey(b.name, b.id), 'th', { numeric: true }));
+        items = sortedGroups.map(g => ({
           id: g.id,
           name: `${g.name} (${g.level === 'VOC_CERT' ? 'ปวช. 18 สัปดาห์' : 'ปวส. 15 สัปดาห์'})`
         }));
@@ -2846,8 +2847,37 @@
     }
 
     // --- Courses & Assignments CRUD JS ---
-    let coursesSortMode = 'code'; // 'code' | 'group'
+    let coursesSortMode = 'group'; // 'group' (ตามปี/กลุ่ม) | 'code' (ตามรหัสวิชา)
     let coursesSortAsc = true;
+    let coursesGroupFilter = '';
+
+    function groupSortKey(name, id) {
+      const text = `${name || ''} ${id || ''}`.trim();
+      const isPvc = (text.includes('ปวช') || text.includes('VOC_CERT') || text.includes('PVC') || text.includes('ชอ.')) && !text.includes('ปวส') && !text.includes('HIGH_VOC_CERT');
+      const isPvs = text.includes('ปวส') || text.includes('HIGH_VOC_CERT') || text.includes('PVS') || text.includes('ชส.') || text.includes('สอ.');
+      const level = isPvc ? 0 : (isPvs ? 1 : 2);
+      const sub = (text.includes('ม.6') || text.toLowerCase().includes('m6')) ? 1 : 0;
+
+      const yearMatch = text.match(/25(\d{2})/);
+      let year = 9999;
+      if (yearMatch) {
+        year = parseInt('25' + yearMatch[1], 10);
+      } else {
+        if (text.includes('1/') || text.includes('.1') || text.includes('ปวช.1') || text.includes('ปวส.1') || text.includes('ปี 1')) year = 2569;
+        else if (text.includes('2/') || text.includes('.2') || text.includes('ปวช.2') || text.includes('ปวส.2') || text.includes('ปี 2')) year = 2570;
+        else if (text.includes('3/') || text.includes('.3') || text.includes('ปวช.3') || text.includes('ปี 3')) year = 2571;
+      }
+
+      const semMatch = text.match(/(\d)\.(?:25)?\d{2}/);
+      let sem = 1;
+      if (semMatch) sem = parseInt(semMatch[1], 10);
+      else if (text.toLowerCase().includes('s.') || text.includes('ฤดูร้อน')) sem = 3;
+
+      const secMatch = text.match(/\/(\d+)/);
+      const sec = secMatch ? parseInt(secMatch[1], 10) : 1;
+
+      return `${level}_${sub}_${year}_${sem}_${String(sec).padStart(3, '0')}_${text}`;
+    }
 
     function setCoursesSortMode(mode) {
       if (coursesSortMode === mode) {
@@ -2859,12 +2889,17 @@
       renderCoursesTab();
     }
 
+    function onCoursesGroupFilterChange(val) {
+      coursesGroupFilter = val || '';
+      renderCoursesTab();
+    }
+
     async function reorderDatabaseAssignments() {
       try {
         const res = await fetch('/api/assignments/sort', { method: 'POST' });
         const data = await res.json();
         if (res.ok) {
-          showToast('🔢 ' + data.message, 'success', 3000);
+          showToast('💾 ' + (data.message || 'จัดเรียงแผนการสอนตามปีและรหัสวิชาเรียบร้อยแล้ว'), 'success', 3500);
           await refreshDataManagerData();
           renderCoursesTab();
         }
@@ -2883,29 +2918,45 @@
       const teacherMap = {};
       fullDataManagerData.teachers.forEach(t => teacherMap[t.id] = t.name);
 
+      // Sort groups chronologically by Year, Level, Section
+      const sortedGroups = [...(fullDataManagerData.groups || [])].sort((a, b) =>
+        groupSortKey(a.name, a.id).localeCompare(groupSortKey(b.name, b.id), 'th', { numeric: true })
+      );
+
       // Update sort button styling
       const btnCode = document.getElementById('btnSortByCode');
       const btnGroup = document.getElementById('btnSortByGroup');
       if (btnCode && btnGroup) {
-        if (coursesSortMode === 'code') {
+        if (coursesSortMode === 'group') {
+          btnGroup.className = "px-2.5 py-1 bg-indigo-600 text-white rounded font-bold transition flex items-center space-x-1 shadow-2xs cursor-pointer";
+          btnGroup.innerHTML = `<span>👥 จัดกลุ่มตามปี/กลุ่มเรียน ${coursesSortAsc ? '▲' : '▼'}</span>`;
+          btnCode.className = "px-2.5 py-1 bg-white hover:bg-slate-200 text-slate-700 border border-slate-300 rounded font-medium transition flex items-center space-x-1 shadow-2xs cursor-pointer";
+          btnCode.innerHTML = `<span>🔢 เรียงตามรหัสวิชา</span>`;
+        } else {
           btnCode.className = "px-2.5 py-1 bg-indigo-600 text-white rounded font-bold transition flex items-center space-x-1 shadow-2xs cursor-pointer";
           btnCode.innerHTML = `<span>🔢 เรียงตามรหัสวิชา ${coursesSortAsc ? '▲' : '▼'}</span>`;
           btnGroup.className = "px-2.5 py-1 bg-white hover:bg-slate-200 text-slate-700 border border-slate-300 rounded font-medium transition flex items-center space-x-1 shadow-2xs cursor-pointer";
-          btnGroup.innerHTML = `<span>👥 เรียงตามกลุ่มเรียน</span>`;
-        } else {
-          btnGroup.className = "px-2.5 py-1 bg-indigo-600 text-white rounded font-bold transition flex items-center space-x-1 shadow-2xs cursor-pointer";
-          btnGroup.innerHTML = `<span>👥 เรียงตามกลุ่มเรียน ${coursesSortAsc ? '▲' : '▼'}</span>`;
-          btnCode.className = "px-2.5 py-1 bg-white hover:bg-slate-200 text-slate-700 border border-slate-300 rounded font-medium transition flex items-center space-x-1 shadow-2xs cursor-pointer";
-          btnCode.innerHTML = `<span>🔢 เรียงตามรหัสวิชา</span>`;
+          btnGroup.innerHTML = `<span>👥 จัดกลุ่มตามปี/กลุ่มเรียน</span>`;
         }
+      }
+
+      // Populate filter dropdown
+      const filterSelect = document.getElementById('filterCoursesGroup');
+      if (filterSelect) {
+        filterSelect.innerHTML = `<option value="">-- แสดงทุกชั้นปี / ทุกกลุ่ม (${(fullDataManagerData.assignments || []).length} รายวิชา) --</option>` +
+          sortedGroups.map(g => {
+            const cnt = (fullDataManagerData.assignments || []).filter(a => a.primary_group_id === g.id).length;
+            const isSel = (g.id === coursesGroupFilter) ? 'selected' : '';
+            return `<option value="${g.id}" ${isSel}>${g.name} (${cnt} วิชา)</option>`;
+          }).join('');
       }
 
       // Populate batch tools dropdowns
       const batchGrp = document.getElementById('batchGroupSelect');
-      if (batchGrp && fullDataManagerData.groups) {
+      if (batchGrp && sortedGroups) {
         const curVal = batchGrp.value;
         batchGrp.innerHTML = '<option value="">-- เลือกกลุ่มเรียน --</option>' + 
-          fullDataManagerData.groups.map(g => `<option value="${g.id}" ${g.id === curVal ? 'selected' : ''}>${g.name} (${g.level === 'VOC_CERT' ? 'ปวช.' : 'ปวส.'})</option>`).join('');
+          sortedGroups.map(g => `<option value="${g.id}" ${g.id === curVal ? 'selected' : ''}>${g.name} (${g.level === 'VOC_CERT' ? 'ปวช.' : 'ปวส.'})</option>`).join('');
       }
       const batchTch = document.getElementById('batchTeacherSelect');
       if (batchTch && fullDataManagerData.teachers) {
@@ -2915,8 +2966,14 @@
           fullDataManagerData.teachers.map(t => `<option value="${t.id}" ${t.id === curVal ? 'selected' : ''}>${t.name}</option>`).join('');
       }
 
-      // Sort assignments: Natural sorting by Course Code or Group
-      const sortedAssignments = [...(fullDataManagerData.assignments || [])].sort((a, b) => {
+      // Filter assignments if group filter is active
+      let assignmentsToRender = fullDataManagerData.assignments || [];
+      if (coursesGroupFilter) {
+        assignmentsToRender = assignmentsToRender.filter(a => a.primary_group_id === coursesGroupFilter);
+      }
+
+      // Sort assignments: Natural sorting by Year/Group or Course Code
+      const sortedAssignments = [...assignmentsToRender].sort((a, b) => {
         const cA = courseMap[a.course_id];
         const cB = courseMap[b.course_id];
         const codeA = cA?.code || a.course_id || '';
@@ -2926,24 +2983,58 @@
 
         let diff = 0;
         if (coursesSortMode === 'group') {
-          diff = grpA.localeCompare(grpB, 'th', { numeric: true });
+          diff = groupSortKey(grpA, a.primary_group_id).localeCompare(groupSortKey(grpB, b.primary_group_id), 'th', { numeric: true });
           if (diff === 0) {
             diff = codeA.localeCompare(codeB, 'th', { numeric: true });
           }
         } else {
           diff = codeA.localeCompare(codeB, 'th', { numeric: true });
           if (diff === 0) {
-            diff = grpA.localeCompare(grpB, 'th', { numeric: true });
+            diff = groupSortKey(grpA, a.primary_group_id).localeCompare(groupSortKey(grpB, b.primary_group_id), 'th', { numeric: true });
           }
         }
         return coursesSortAsc ? diff : -diff;
       });
 
+      let lastGroupId = null;
       tbody.innerHTML = sortedAssignments.map(a => {
         const c = courseMap[a.course_id];
         const code = c?.code || a.course_id;
         const name = c?.name || '';
         const dur = c?.periods_per_session || 1;
+
+        let headerRow = '';
+        if (coursesSortMode === 'group' && a.primary_group_id !== lastGroupId) {
+          lastGroupId = a.primary_group_id;
+          const grpObj = sortedGroups.find(g => g.id === a.primary_group_id);
+          const grpName = grpObj ? grpObj.name : (groupMap[a.primary_group_id] || a.primary_group_id);
+          const grpLvl = grpObj ? (grpObj.level === 'VOC_CERT' ? 'ปวช.' : 'ปวส.') : '';
+          const grpIntern = grpObj?.is_internship;
+          const groupCount = sortedAssignments.filter(x => x.primary_group_id === a.primary_group_id).length;
+          const groupTotalPeriods = sortedAssignments.filter(x => x.primary_group_id === a.primary_group_id).reduce((acc, x) => acc + (courseMap[x.course_id]?.periods_per_session || 1), 0);
+
+          headerRow = `
+            <tr class="bg-indigo-50/90 border-t-2 border-b border-indigo-200">
+              <td colspan="7" class="py-2.5 px-3">
+                <div class="flex items-center justify-between flex-wrap gap-2">
+                  <div class="flex items-center space-x-2">
+                    <span class="w-6 h-6 rounded bg-indigo-600 text-white flex items-center justify-center text-xs font-bold font-display shadow-2xs">
+                      👥
+                    </span>
+                    <span class="font-bold text-sm text-indigo-950 font-display">
+                      ${grpName}
+                    </span>
+                    ${grpLvl ? `<span class="px-2 py-0.5 rounded text-[10.5px] font-bold ${grpObj.level === 'VOC_CERT' ? 'bg-blue-100 text-blue-800 border border-blue-200' : 'bg-purple-100 text-purple-800 border border-purple-200'}">${grpLvl}</span>` : ''}
+                    ${grpIntern ? '<span class="px-2 py-0.5 bg-amber-100 text-amber-900 border border-amber-300 rounded text-[10.5px] font-bold">🏢 ฝึกงานสถานประกอบการ</span>' : ''}
+                  </div>
+                  <span class="text-xs font-bold text-indigo-900 bg-white px-2.5 py-0.5 rounded border border-indigo-200 shadow-2xs font-display">
+                    ${groupCount} รายวิชา | รวม ${groupTotalPeriods} คาบ/สัปดาห์
+                  </span>
+                </div>
+              </td>
+            </tr>
+          `;
+        }
 
         let typeBadge = '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-800 border border-blue-200">ทฤษฎี</span>';
         if (a.secondary_group_id) {
@@ -2965,7 +3056,7 @@
         }
 
         // Group options for dropdown
-        const grpOptions = (fullDataManagerData.groups || []).map(g => {
+        const grpOptions = sortedGroups.map(g => {
           const isSel = (g.id === a.primary_group_id) ? 'selected' : '';
           const lvl = g.level === 'VOC_CERT' ? 'ปวช.' : 'ปวส.';
           return `<option value="${g.id}" ${isSel}>${g.name} (${lvl})</option>`;
@@ -2982,6 +3073,7 @@
         ].join('');
 
         return `
+          ${headerRow}
           <tr id="row-ass-${a.id}" class="border-b border-slate-200 hover:bg-slate-50 transition-colors">
             <td class="py-2.5 px-3 font-mono font-bold text-slate-800 text-xs">${code}</td>
             <td class="py-2.5 px-3 font-semibold text-slate-900 text-xs">${name}</td>
@@ -4628,18 +4720,24 @@
           <div class="border border-slate-300 rounded-lg overflow-hidden shadow-2xs">
             <!-- Sort & Organize Toolbar -->
             <div class="bg-slate-100/90 px-3 py-2 border-b border-slate-300 flex flex-wrap items-center justify-between gap-2 text-xs">
-              <div class="flex items-center space-x-2">
+              <div class="flex items-center flex-wrap gap-2">
                 <span class="font-bold text-slate-700">การจัดเรียง:</span>
-                <button type="button" onclick="setCoursesSortMode('code')" id="btnSortByCode" class="px-2.5 py-1 bg-indigo-600 text-white rounded font-bold transition flex items-center space-x-1 shadow-2xs cursor-pointer">
-                  <span>🔢 เรียงตามรหัสวิชา (ค่าเริ่มต้น)</span>
+                <button type="button" onclick="setCoursesSortMode('group')" id="btnSortByGroup" class="px-2.5 py-1 bg-indigo-600 text-white rounded font-bold transition flex items-center space-x-1 shadow-2xs cursor-pointer">
+                  <span>👥 จัดกลุ่มตามปี/กลุ่มเรียน</span>
                 </button>
-                <button type="button" onclick="setCoursesSortMode('group')" id="btnSortByGroup" class="px-2.5 py-1 bg-white hover:bg-slate-200 text-slate-700 border border-slate-300 rounded font-medium transition flex items-center space-x-1 shadow-2xs cursor-pointer">
-                  <span>👥 เรียงตามกลุ่มเรียน</span>
+                <button type="button" onclick="setCoursesSortMode('code')" id="btnSortByCode" class="px-2.5 py-1 bg-white hover:bg-slate-200 text-slate-700 border border-slate-300 rounded font-medium transition flex items-center space-x-1 shadow-2xs cursor-pointer">
+                  <span>🔢 เรียงตามรหัสวิชา</span>
                 </button>
+                <div class="flex items-center space-x-1 sm:ml-2">
+                  <span class="text-slate-500 font-semibold text-[11px]">กรองชั้นปี/กลุ่ม:</span>
+                  <select id="filterCoursesGroup" onchange="onCoursesGroupFilterChange(this.value)" class="bg-white border border-slate-300 rounded px-2 py-0.5 text-xs font-semibold text-slate-700 shadow-2xs">
+                    <option value="">-- แสดงทุกชั้นปี / ทุกกลุ่ม --</option>
+                  </select>
+                </div>
               </div>
               <div>
-                <button type="button" onclick="reorderDatabaseAssignments()" class="px-2.5 py-1 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded font-medium transition flex items-center space-x-1 text-[11px] cursor-pointer" title="บันทึกลำดับตามรหัสวิชาลงฐานข้อมูล">
-                  <span>💾 บันทึกลำดับรหัสวิชาลงฐานข้อมูล</span>
+                <button type="button" onclick="reorderDatabaseAssignments()" class="px-2.5 py-1 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded font-medium transition flex items-center space-x-1 text-[11px] cursor-pointer" title="บันทึกลำดับจัดกลุ่มตามปีและรหัสวิชาลงฐานข้อมูล">
+                  <span>💾 บันทึกลำดับตามปีลงฐานข้อมูล</span>
                 </button>
               </div>
             </div>

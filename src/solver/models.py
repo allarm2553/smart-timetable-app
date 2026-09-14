@@ -136,4 +136,48 @@ def is_activity_assignment(course_name: str, course_code: str = "") -> bool:
         "องค์การวิชาชีพ" in name or "20000-200" in code or "30000-200" in code
     )
 
+def group_sort_key(group_name: str, group_id: str = "") -> tuple:
+    """
+    สร้าง Sort Key เพื่อจัดเรียงกลุ่มเรียนตามปีการศึกษาและภาคเรียนอย่างเป็นระบบ:
+    ตัวอย่าง: ปวช 2.2569 -> ปวช 2.2570 -> ปวช 1.2571 -> ปวช 2.2571 -> ปวส...
+    """
+    text = f"{group_name or ''} {group_id or ''}".strip()
+    # ระดับการศึกษา: ปวช = 0, ปวส = 1, อื่นๆ = 2
+    level = 0 if any(k in text for k in ["ปวช", "VOC_CERT", "PVC", "ชอ."]) and not ("ปวส" in text or "HIGH_VOC_CERT" in text) else (
+        1 if any(k in text for k in ["ปวส", "HIGH_VOC_CERT", "PVS", "ชส.", "สอ."]) else 2
+    )
+    # หลักสูตร ม.6
+    sub = 1 if any(k in text.lower() for k in ["ม.6", "m.6", "m6"]) else 0
+
+    # ปี พ.ศ. เช่น 2569, 2570, 2571 หรือ 69, 70, 71
+    year_match = re.search(r'25(\d{2})', text)
+    if year_match:
+        year = int(f"25{year_match.group(1)}")
+    else:
+        # สันนิษฐานจากชั้นปี: 1 -> 2569, 2 -> 2570, 3 -> 2571
+        if any(k in text for k in ["1/", ".1", "ปวช.1", "ปวส.1", "ปี 1"]):
+            year = 2569
+        elif any(k in text for k in ["2/", ".2", "ปวช.2", "ปวส.2", "ปี 2"]):
+            year = 2570
+        elif any(k in text for k in ["3/", ".3", "ปวช.3", "ปี 3"]):
+            year = 2571
+        else:
+            year = 9999
+
+    # ภาคเรียน: 1 -> 1, 2 -> 2, S/ฤดูร้อน -> 3
+    sem_match = re.search(r'(\d)\.(?:25)?\d{2}', text)
+    if sem_match:
+        sem = int(sem_match.group(1))
+    elif any(k in text.lower() for k in ["s.", "ฤดูร้อน", "summer"]):
+        sem = 3
+    else:
+        sem = 1
+
+    # ลำดับห้อง เช่น /1 -> 1, /2 -> 2
+    sec_match = re.search(r'/(\d+)', text)
+    sec = int(sec_match.group(1)) if sec_match else 1
+
+    return (level, sub, year, sem, sec, text)
+
+
 

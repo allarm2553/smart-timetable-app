@@ -457,6 +457,81 @@ def test_process_import_sorts_by_course_code():
     assert res_sort.json()["is_success"] is True
     print("✅ test_process_import_sorts_by_course_code passed")
 
+def test_process_import_groups_by_year():
+    """ทดสอบการนำเข้าแผนการเรียนที่มีหลายภาคเรียน/ปีการศึกษา เช่น ปวช 2.2569 , 2.2570, 1.2571, 2.2571"""
+    data_manager.reset_to_default()
+    wb = openpyxl.Workbook()
+    # สร้างชีทตามปีที่ผู้ใช้ระบุ
+    # Sheet 1: 2.2571 (สร้างก่อนเพื่อทดสอบว่าระบบจะจัดเรียงตามปีถูกต้อง ไม่เรียงตามลำดับการสร้าง)
+    ws_71_2 = wb.active
+    ws_71_2.title = "2.2571"
+    ws_71_2.append(["รหัสวิชา", "ชื่อวิชา", "ท", "ป", "น"])
+    ws_71_2.append(["20001-1003", "ธุรกิจเบื้องต้น", 1, 2, 2])
+    ws_71_2.append(["20000-2007", "กิจกรรมในสถานประกอบการ1", 0, 2, 0])
+
+    # Sheet 2: 1.2571
+    ws_71_1 = wb.create_sheet("1.2571")
+    ws_71_1.append(["รหัสวิชา", "ชื่อวิชา", "ท", "ป", "น"])
+    ws_71_1.append(["20100-1007", "งานนิวเมติกส์และไฮดรอลิกส์", 1, 3, 2])
+    ws_71_1.append(["20000-1202", "ภาษาอังกฤษโครงงาน", 1, 1, 1])
+
+    # Sheet 3: 2.2570
+    ws_70_2 = wb.create_sheet("2.2570")
+    ws_70_2.append(["รหัสวิชา", "ชื่อวิชา", "ท", "ป", "น"])
+    ws_70_2.append(["20000-1501", "หน้าที่พลเมืองและศีลธรรม", 2, 0, 2])
+    ws_70_2.append(["20000-1204", "ภาษาอังกฤษสถานประกอบการ", 1, 1, 1])
+
+    # Sheet 4: 2.2569
+    ws_69_2 = wb.create_sheet("2.2569")
+    ws_69_2.append(["รหัสวิชา", "ชื่อวิชา", "ท", "ป", "น"])
+    ws_69_2.append(["20100-1001", "เขียนแบบเทคนิคเบื้องต้น", 1, 3, 2])
+    ws_69_2.append(["20000-1102", "ภาษาไทยเพื่ออาชีพ", 1, 0, 1])
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    xlsx_bytes = buf.getvalue()
+
+    b64_content = base64.b64encode(xlsx_bytes).decode("utf-8")
+    payload = {
+        "filename": "รหัส 69 ปวช. หลักสูตร67 .xlsx",
+        "content_base64": b64_content,
+        "mode": "replace"
+    }
+    res = client.post("/api/import/process", json=payload)
+    assert res.status_code == 200
+    data = res.json()
+    assert data["is_success"] is True
+
+    all_d = data_manager.get_all_data()
+    groups = all_d["groups"]
+    group_names = [g["name"] for g in groups]
+
+    # ตรวจสอบว่ากลุ่มเรียนถูกสร้างและเรียงลำดับตามปี 2.2569 -> 2.2570 -> 1.2571 -> 2.2571 อย่างถูกต้อง
+    expected_order = [
+        "ปวช 2.2569 (ปวช.1)",
+        "ปวช 2.2570 (ปวช.2)",
+        "ปวช 1.2571 (ปวช.3)",
+        "ปวช 2.2571 (ปวช.3 ฝึกงาน)"
+    ]
+    for exp in expected_order:
+        assert any(exp in gn for gn in group_names), f"Expected group {exp} in {group_names}"
+
+    # ตรวจสอบลำดับการจัดเรียงกลุ่มเรียน
+    matched_indices = [next(i for i, gn in enumerate(group_names) if exp in gn) for exp in expected_order]
+    assert matched_indices == sorted(matched_indices), f"Groups should be ordered chronologically: {group_names}"
+
+    # ตรวจสอบการจัดกลุ่มและการเรียงรหัสวิชาใน assignments
+    course_map = {c["id"]: c for c in all_d["courses"]}
+    ass_list = all_d["assignments"]
+    g69_codes = [course_map[a["course_id"]]["code"] for a in ass_list if "2569" in a["primary_group_id"]]
+    assert g69_codes == ["20000-1102", "20100-1001"], f"Courses in 2.2569 should be sorted by code: {g69_codes}"
+
+    # ตรวจสอบว่ากลุ่ม 2.2571 ถูกตั้งค่าเป็นกลุ่มฝึกงาน (is_internship = True)
+    g71_intern = next(g for g in groups if "2.2571" in g["name"])
+    assert g71_intern["is_internship"] is True
+
+    print("✅ test_process_import_groups_by_year passed")
+
 if __name__ == "__main__":
     orig_data = data_manager.get_all_data()
     try:
@@ -472,6 +547,7 @@ if __name__ == "__main__":
         test_inline_group_and_teacher_assignment()
         test_multiple_groups_per_course_with_different_teachers()
         test_process_import_sorts_by_course_code()
+        test_process_import_groups_by_year()
         print("\n🎉 ALL BULK IMPORTER TESTS PASSED SUCCESSFULLY! 🎉")
     finally:
         data_manager.teachers = orig_data["teachers"]
@@ -480,3 +556,4 @@ if __name__ == "__main__":
         data_manager.courses = {c["id"]: c for c in orig_data["courses"]}
         data_manager.assignments = orig_data["assignments"]
         data_manager._save()
+

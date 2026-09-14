@@ -54,6 +54,8 @@ class TimetableSolver:
         # occupies[a_id, d, p] -> bool: whether assignment covers period p
         self.occupies = {}
         self._active_cache = {}
+        self.scheduled_vars = []
+        self.is_scheduled = {}
 
     def _get_active_var(self, a_id: str, b: int, d: int, p: int):
         """คืนค่าตัวแปร (หรือ None) ที่ระบุว่า assignment a_id กำลังเรียนอยู่ใน slot (b, d, p) หรือไม่"""
@@ -113,8 +115,17 @@ class TimetableSolver:
                         self.starts[a_id, d, p] = var
                         start_vars.append(var)
 
-            # แต่ละวิชาต้องมีเวลาเริ่ม 1 จุดต่อสัปดาห์
-            self.model.AddExactlyOne(start_vars)
+            # แต่ละวิชาสามารถมีเวลาเริ่มได้สูงสุด 1 จุดต่อสัปดาห์ (Soft Maximize)
+            is_sched = self.model.NewBoolVar(f"sched_{a_id}")
+            self.is_scheduled[a_id] = is_sched
+            if start_vars:
+                self.model.Add(sum(start_vars) == is_sched)
+                if is_pinned:
+                    self.scheduled_vars.append(is_sched * 10000)
+                else:
+                    self.scheduled_vars.append(is_sched * 100)
+            else:
+                self.model.Add(is_sched == 0)
 
             # ตัวแปรการครองคาบเรียน (occupies day d, period p)
             for d in range(self.days):
@@ -141,13 +152,14 @@ class TimetableSolver:
                         b_var = self.model.NewBoolVar(f"block_{a_id}_b{b}")
                         self.block_active[a_id, b] = b_var
                         rotation_block_vars.append(b_var)
-                self.model.AddExactlyOne(rotation_block_vars)
+                if rotation_block_vars:
+                    self.model.Add(sum(rotation_block_vars) == is_sched)
             else:
                 for b in range(self.num_blocks):
                     if b in primary_grp.active_blocks:
                         b_var = self.model.NewBoolVar(f"block_{a_id}_b{b}")
                         self.block_active[a_id, b] = b_var
-                        self.model.Add(b_var == 1)
+                        self.model.Add(b_var == is_sched)
 
         # 2. Constraints การจัดตาราง
         self._add_group_conflict_constraints()
@@ -365,12 +377,18 @@ class TimetableSolver:
                     t_pinned = getattr(t_a, "is_pinned", False)
                     p_pinned = getattr(p_a, "is_pinned", False)
                     if not t_pinned and not p_pinned:
-                        self.model.Add(day_t <= day_p)
+                        sched_t = self.is_scheduled.get(t_a.id)
+                        sched_p = self.is_scheduled.get(p_a.id)
+                        if sched_t is not None and sched_p is not None:
+                            self.model.Add(day_t <= day_p + 10 * (2 - sched_t - sched_p))
+                        else:
+                            self.model.Add(day_t <= day_p)
 
     def _add_soft_preferences(self):
         """กำหนด Objective Function:
-        1. พยายามหลีกเลี่ยงคาบแรกเช้าตรู่หรือคาบเย็นถ้าไม่จำเป็น (สำหรับวิชาปกติ)
-        2. พยายามจัดวิชาที่มีชั่วโมงยาวให้เริ่มช่วงต้นคาบ (เช่น คาบ 0 หรือ คาบ 5 หลังพักเที่ยง)
+        1. จัดตารางให้ได้จำนวนรายวิชามากที่สุด (Maximize scheduled lessons)
+        2. พยายามหลีกเลี่ยงคาบแรกเช้าตรู่หรือคาบเย็นถ้าไม่จำเป็น (สำหรับวิชาปกติ)
+        3. พยายามจัดวิชาที่มีชั่วโมงยาวให้เริ่มช่วงต้นคาบ (เช่น คาบ 0 หรือ คาบ 5 หลังพักเที่ยง)
         """
         penalty_terms = []
         for a_id, a in self.assignments.items():
@@ -379,7 +397,7 @@ class TimetableSolver:
             is_internship_grp = getattr(primary_grp, "is_internship", False) or (secondary_grp and getattr(secondary_grp, "is_internship", False))
             is_theory = (a.course.course_type == CourseType.THEORY)
 
-            duration = a.course.periods_per_session
+            duration = min(5, max(1, a.course.periods_per_session))
             valid_start_periods = self.periods_per_day - duration + 1
             for d in range(self.days):
                 for p in range(valid_start_periods):
@@ -396,8 +414,10 @@ class TimetableSolver:
                     if cost > 0:
                         penalty_terms.append(self.starts[a_id, d, p] * cost)
 
+        total_obj = sum(self.scheduled_vars)
         if penalty_terms:
-            self.model.Minimize(sum(penalty_terms))
+            total_obj = total_obj - sum(penalty_terms)
+        self.model.Maximize(total_obj)
 
     def _assign_rooms(self, results: list) -> None:
         """จัดสรรห้องเรียนจริงที่ตรงประเภทและความจุให้กับแต่ละรายวิชาโดยไม่มีการชนเวลา"""
@@ -463,6 +483,9 @@ class TimetableSolver:
                 item["room"] = chosen
 
     def solve(self, time_limit_seconds: float = 20.0):
+        if not self.starts:
+            self.build_model()
+
         self.solver.parameters.max_time_in_seconds = time_limit_seconds
         self.solver.parameters.num_search_workers = 1
         self.solver.parameters.linearization_level = 0
@@ -489,6 +512,10 @@ class TimetableSolver:
                         break
                 if chosen_day != -1:
                     break
+
+            if chosen_day == -1:
+                # รายวิชานี้ไม่ได้รับการจัดตารางในสัปดาห์นี้เนื่องจากทรัพยากรเต็ม (เช่น กลุ่มเรียนหรือครูเกินเพดาน 35 คาบ)
+                continue
 
             primary_grp = self.groups[a.primary_group_id]
             if a.is_rotation:

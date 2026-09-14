@@ -222,13 +222,20 @@ def _run_solver(
             )
             schedule_entries.append(entry)
 
+        total_sched = len(schedule_entries)
+        total_total = len(assignments)
+        if total_sched < total_total:
+            msg = f"จัดตารางสำเร็จ {total_sched} จากทั้งหมด {total_total} รายการ (มี {total_total - total_sched} รายการที่ไม่สามารถลงตารางได้เนื่องจากชั่วโมงครูหรือกลุ่มเรียนเกินเพดาน 35 คาบ/สัปดาห์)"
+        else:
+            msg = "จัดตารางเรียนตารางสอนสำเร็จเรียบร้อย ครบทุกรายวิชา"
+
         return SolveResponse(
             status="FEASIBLE",
             is_success=True,
             execution_time_seconds=elapsed,
-            total_lessons_scheduled=len(schedule_entries),
+            total_lessons_scheduled=total_sched,
             schedule=schedule_entries,
-            message="จัดตารางเรียนตารางสอนสำเร็จเรียบร้อย"
+            message=msg
         )
     except Exception as exc:
         elapsed = round(time.time() - start_time, 3)

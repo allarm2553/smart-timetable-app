@@ -390,7 +390,8 @@ class TimetableDataManager:
         secondary_teacher_id: str,
         theory_room_type: str = "LECTURE_HALL",
         practice_room_type: str = "CLASSROOM",
-        sync_parallel: bool = True
+        sync_parallel: bool = True,
+        source_assignment_id: Optional[str] = None
     ) -> Dict[str, Any]:
         """สร้างแพ็กเกจวิชา 'ทฤษฎีเรียนรวม 2 กลุ่ม / ปฏิบัติแยกกลุ่ม 2 อาจารย์'
         โดยจะสร้าง 2 Master Courses (ทฤษฎี และ ปฏิบัติ)
@@ -442,8 +443,14 @@ class TimetableDataManager:
         ass_p1_id = f"ASS_{clean_code}_P_{clean_g1}"
         ass_p2_id = f"ASS_{clean_code}_P_{clean_g2}"
 
-        # ลบ Assignment เดิมที่ซ้ำถ้ามี
+        # ลบ Assignment เดิมที่ซ้ำหรือต้องการแทนที่ถ้ามี
         existing_ids = {ass_theory_id, ass_p1_id, ass_p2_id}
+        if source_assignment_id:
+            src_a = self._find_assignment(source_assignment_id)
+            if src_a:
+                existing_ids.add(src_a["id"])
+            else:
+                existing_ids.add(source_assignment_id)
         self.assignments = [a for a in self.assignments if a["id"] not in existing_ids]
 
         # 3.1 แผนการสอนทฤษฎี (เรียนรวม 2 กลุ่ม ผู้สอนคืออาจารย์หลัก)

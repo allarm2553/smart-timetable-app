@@ -2865,6 +2865,9 @@
             </td>
             <td class="py-2.5 px-3 text-right whitespace-nowrap">
               <div class="flex items-center justify-end space-x-1.5">
+                <button onclick="openSplitTheoryPracticeForCourse('${a.id}')" class="text-purple-600 hover:text-purple-800 p-1.5 hover:bg-purple-50 rounded" title="ตั้งค่า ทฤษฎีเรียนรวม / ปฏิบัติแยกกลุ่ม 2 อาจารย์ (คลิกเพื่อตั้งค่าจากวิชานี้)">
+                  <i data-lucide="layers" class="w-4 h-4"></i>
+                </button>
                 <button onclick="openAddGroupToCourseModal('${a.id}')" class="text-emerald-600 hover:text-emerald-800 p-1.5 hover:bg-emerald-50 rounded" title="เพิ่มกลุ่มเรียนอื่นให้กับวิชานี้ (เช่น ชอ.1/2, ชอ.1/3)">
                   <i data-lucide="user-plus" class="w-4 h-4"></i>
                 </button>
@@ -3174,6 +3177,7 @@
     function openSplitTheoryPracticeModal() {
       if (!fullDataManagerData) return;
 
+      document.getElementById('splitSourceAssignmentId').value = '';
       const grpSelect1 = document.getElementById('splitPrimaryGroup');
       const grpSelect2 = document.getElementById('splitSecondaryGroup');
       const tchSelect1 = document.getElementById('splitPrimaryTeacher');
@@ -3200,12 +3204,67 @@
       if (window.lucide) lucide.createIcons();
     }
 
+    function openSplitTheoryPracticeForCourse(assignmentId) {
+      if (!fullDataManagerData || !fullDataManagerData.assignments) return;
+      const a = fullDataManagerData.assignments.find(x => x.id === assignmentId);
+      if (!a) return;
+      const c = (fullDataManagerData.courses || []).find(x => x.id === a.course_id) || {};
+
+      openSplitTheoryPracticeModal();
+
+      document.getElementById('splitSourceAssignmentId').value = a.id;
+      document.getElementById('splitCourseCode').value = c.code || a.course_id;
+      document.getElementById('splitCourseName').value = c.name || '';
+
+      const totalPeriods = c.periods_per_session || 4;
+      const theoryP = 1;
+      const pracP = Math.max(1, totalPeriods - theoryP);
+      document.getElementById('splitTheoryPeriods').value = String(theoryP);
+      document.getElementById('splitPracticePeriods').value = String(pracP);
+
+      if (a.primary_group_id) {
+        document.getElementById('splitPrimaryGroup').value = a.primary_group_id;
+      }
+      if (a.teacher_id && a.teacher_id !== 'T_UNASSIGNED') {
+        document.getElementById('splitPrimaryTeacher').value = a.teacher_id;
+      }
+
+      if (a.secondary_group_id) {
+        document.getElementById('splitSecondaryGroup').value = a.secondary_group_id;
+      } else {
+        const grps = fullDataManagerData.groups || [];
+        const otherGrp = grps.find(g => g.id !== a.primary_group_id);
+        if (otherGrp) {
+          document.getElementById('splitSecondaryGroup').value = otherGrp.id;
+        }
+      }
+
+      if (a.secondary_teacher_id) {
+        document.getElementById('splitSecondaryTeacher').value = a.secondary_teacher_id;
+      } else {
+        const tchs = fullDataManagerData.teachers || [];
+        const otherTch = tchs.find(t => t.id !== a.teacher_id && t.id !== 'T_UNASSIGNED');
+        if (otherTch) {
+          document.getElementById('splitSecondaryTeacher').value = otherTch.id;
+        }
+      }
+
+      if (c.required_room_type) {
+        if (c.required_room_type === 'LECTURE_HALL' || c.required_room_type === 'CLASSROOM') {
+          document.getElementById('splitTheoryRoomType').value = c.required_room_type;
+        } else {
+          document.getElementById('splitPracticeRoomType').value = c.required_room_type;
+        }
+      }
+    }
+
     function closeSplitTheoryPracticeModal() {
       document.getElementById('splitTheoryPracticeModal').classList.add('hidden');
     }
 
     async function handleSaveSplitTheoryPractice(e) {
       e.preventDefault();
+      const source_assignment_id = document.getElementById('splitSourceAssignmentId').value || null;
       const code = document.getElementById('splitCourseCode').value.trim();
       const name = document.getElementById('splitCourseName').value.trim();
       const theory_periods = parseInt(document.getElementById('splitTheoryPeriods').value) || 1;
@@ -3239,7 +3298,8 @@
           secondary_teacher_id,
           theory_room_type,
           practice_room_type,
-          sync_parallel
+          sync_parallel,
+          source_assignment_id
         };
 
         const res = await fetch('/api/courses/split-theory-practice', {
@@ -3252,7 +3312,7 @@
           closeSplitTheoryPracticeModal();
           await loadFullDataManager();
           await saveAndSolveCurrent();
-          showToast('🌟 สร้างแผนการสอนทฤษฎีรวมและปฏิบัติแยกกลุ่ม 2 อาจารย์เรียบร้อยแล้ว!', 'success', 4000);
+          showToast('🌟 แปลงเป็นวิชาทฤษฎีรวมและปฏิบัติแยกกลุ่ม 2 อาจารย์เรียบร้อยแล้ว!', 'success', 4000);
         } else {
           alert('ไม่สามารถสร้างได้: ' + (data.detail || data.message || 'เกิดข้อผิดพลาด'));
         }
@@ -4185,11 +4245,6 @@
                   <span>นำไปใช้กับทุกวิชา</span>
                 </button>
               </div>
-              <div class="h-4 w-px bg-slate-300 hidden md:block"></div>
-              <button type="button" onclick="openSplitTheoryPracticeModal()" class="px-3 py-1 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded font-bold transition flex items-center space-x-1 shadow-2xs cursor-pointer" title="สร้างแผนการสอน: ทฤษฎีเรียนรวม 2 กลุ่ม และ ปฏิบัติแยกกลุ่ม 2 อาจารย์">
-                <span>🌟</span>
-                <span>ทฤษฎีรวม / ปฏิบัติแยกกลุ่ม</span>
-              </button>
             </div>
           </div>
 
@@ -4570,6 +4625,20 @@
             </div>
           </div>
 
+          <!-- Quick Action: Split Theory & Practice for this Course -->
+          <div class="bg-indigo-50 border border-indigo-200 rounded-lg p-2.5 flex items-center justify-between text-xs">
+            <div class="flex items-center space-x-2 text-indigo-900">
+              <span class="text-base">🌟</span>
+              <div>
+                <span class="font-bold">เรียนทฤษฎีรวม 2 กลุ่ม และแยกปฏิบัติ 2 อาจารย์?</span>
+                <p class="text-[11px] text-indigo-700">ระบบจะแปลงวิชานี้เป็น ทฤษฎีรวม (ครูหลัก) และ ปฏิบัติแยกกลุ่ม (กลุ่ม 1: ครูหลัก / กลุ่ม 2: ครูร่วม) อัตโนมัติ</p>
+              </div>
+            </div>
+            <button type="button" onclick="const curAssId = document.getElementById('editCourseAssignmentId').value; closeEditEntityModal(); openSplitTheoryPracticeForCourse(curAssId);" class="px-3 py-1.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded font-bold transition flex items-center space-x-1 shadow-2xs cursor-pointer whitespace-nowrap">
+              <span>ตั้งค่าแยกปฏิบัติ</span>
+            </button>
+          </div>
+
           <!-- Quick Action: Add Another Group to this Course -->
           <div class="bg-emerald-50 border border-emerald-200 rounded-lg p-2.5 flex items-center justify-between text-xs">
             <div class="flex items-center space-x-2 text-emerald-900">
@@ -4835,6 +4904,7 @@
 
       <!-- Modal Body -->
       <form onsubmit="handleSaveSplitTheoryPractice(event)" class="p-6 space-y-4 overflow-y-auto flex-1 text-xs">
+        <input type="hidden" id="splitSourceAssignmentId">
         
         <!-- Course Info -->
         <div class="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">

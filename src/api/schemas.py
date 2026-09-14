@@ -110,6 +110,7 @@ class SplitTheoryPracticeRequest(BaseModel):
     theory_room_type: RoomType = RoomType.LECTURE_HALL
     practice_room_type: RoomType = RoomType.CLASSROOM
     sync_parallel: bool = True
+    source_assignment_id: Optional[str] = None
 
 class SolveResponse(BaseModel):
     status: str

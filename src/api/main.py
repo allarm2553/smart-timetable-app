@@ -608,7 +608,8 @@ def api_create_split_theory_practice(payload: SplitTheoryPracticeRequest):
             secondary_teacher_id=payload.secondary_teacher_id,
             theory_room_type=t_rm,
             practice_room_type=p_rm,
-            sync_parallel=payload.sync_parallel
+            sync_parallel=payload.sync_parallel,
+            source_assignment_id=payload.source_assignment_id
         )
         return {"is_success": True, "data": res, "message": "สร้างแผนการสอนทฤษฎีรวมและปฏิบัติแยกกลุ่มสำเร็จ"}
     except Exception as e:

@@ -26,7 +26,7 @@ from src.api.schemas import (
     SolveRequest, SolveResponse, ScheduleEntryDTO,
     TeacherDTO, RoomDTO, StudentGroupDTO, CourseDTO, LessonAssignmentDTO,
     ValidateMoveRequest, ValidateMoveResponse, ApplyMoveRequest, ApplyMoveResponse,
-    SwapLessonsRequest, SwapLessonsResponse, PinAssignmentRequest
+    SwapLessonsRequest, SwapLessonsResponse, PinAssignmentRequest, SplitTheoryPracticeRequest
 )
 
 app = FastAPI(
@@ -215,7 +215,10 @@ def _run_solver(
                 fixed_day=getattr(ass, "fixed_day", None),
                 fixed_start_period=getattr(ass, "fixed_start_period", None),
                 fixed_room_id=getattr(ass, "fixed_room_id", None),
-                external_teacher_name=getattr(ass, "external_teacher_name", None)
+                external_teacher_name=getattr(ass, "external_teacher_name", None),
+                parallel_with_id=getattr(ass, "parallel_with_id", None),
+                component_type=getattr(ass, "component_type", None),
+                parent_assignment_id=getattr(ass, "parent_assignment_id", None)
             )
             schedule_entries.append(entry)
 
@@ -588,6 +591,28 @@ def api_pin_assignment(assignment_id: str, payload: PinAssignmentRequest):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+
+@app.post("/api/courses/split-theory-practice")
+def api_create_split_theory_practice(payload: SplitTheoryPracticeRequest):
+    try:
+        t_rm = payload.theory_room_type.value if hasattr(payload.theory_room_type, "value") else str(payload.theory_room_type)
+        p_rm = payload.practice_room_type.value if hasattr(payload.practice_room_type, "value") else str(payload.practice_room_type)
+        res = data_manager.create_split_theory_practice_bundle(
+            course_name=payload.course_name,
+            course_code=payload.course_code,
+            theory_periods=payload.theory_periods,
+            practice_periods=payload.practice_periods,
+            primary_group_id=payload.primary_group_id,
+            secondary_group_id=payload.secondary_group_id,
+            primary_teacher_id=payload.primary_teacher_id,
+            secondary_teacher_id=payload.secondary_teacher_id,
+            theory_room_type=t_rm,
+            practice_room_type=p_rm,
+            sync_parallel=payload.sync_parallel
+        )
+        return {"is_success": True, "data": res, "message": "สร้างแผนการสอนทฤษฎีรวมและปฏิบัติแยกกลุ่มสำเร็จ"}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @app.post("/api/solve/current", response_model=SolveResponse)

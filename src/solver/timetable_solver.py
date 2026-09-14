@@ -153,6 +153,7 @@ class TimetableSolver:
         self._add_teacher_conflict_constraints()
         self._add_room_capacity_constraints()
         self._add_rotation_base_constraints()
+        self._add_parallel_and_pedagogical_constraints()
         self._add_soft_preferences()
 
     def _add_group_conflict_constraints(self):
@@ -301,6 +302,70 @@ class TimetableSolver:
                 if act_b:
                     self.model.Add(sum(act_b) <= 1)
 
+    def _add_parallel_and_pedagogical_constraints(self):
+        """จัดการข้อกำหนดวิชาที่ต้องจัดเวลาคู่ขนาน (Parallel Start)
+        และข้อกำหนดวิชาทฤษฎีต้องเรียนก่อนหรือวันเดียวกับปฏิบัติ (Pedagogical Precedence)
+        """
+        # 1. Parallel Start Constraints
+        processed_pairs = set()
+        for a_id, a in self.assignments.items():
+            par_id = getattr(a, "parallel_with_id", None)
+            if par_id and par_id in self.assignments:
+                pair_key = tuple(sorted([a_id, par_id]))
+                if pair_key in processed_pairs:
+                    continue
+                processed_pairs.add(pair_key)
+
+                # ผูกเวลาเริ่มต้นของ a_id และ par_id ให้ตรงกันเป๊ะในทุก (day, start_period)
+                for d in range(self.days):
+                    for p in range(self.periods_per_day):
+                        var_a = self.starts.get((a_id, d, p))
+                        var_b = self.starts.get((par_id, d, p))
+                        if var_a is not None and var_b is not None:
+                            self.model.Add(var_a == var_b)
+                        elif var_a is not None:
+                            self.model.Add(var_a == 0)
+                        elif var_b is not None:
+                            self.model.Add(var_b == 0)
+
+        # 2. Pedagogical Precedence: ทฤษฎีต้องเรียนก่อนหรือวันเดียวกับปฏิบัติสำหรับกลุ่มวิชาเดียวกัน
+        grouped_by_parent = {}
+        for a_id, a in self.assignments.items():
+            parent_id = getattr(a, "parent_assignment_id", None)
+            if parent_id:
+                grouped_by_parent.setdefault(parent_id, []).append(a)
+
+        for parent_id, a_list in grouped_by_parent.items():
+            theory_assignments = [a for a in a_list if getattr(a, "component_type", None) == "THEORY"]
+            practice_assignments = [a for a in a_list if getattr(a, "component_type", None) == "PRACTICE"]
+
+            for t_a in theory_assignments:
+                t_starts = [
+                    (d, p, self.starts[t_a.id, d, p])
+                    for d in range(self.days)
+                    for p in range(self.periods_per_day)
+                    if (t_a.id, d, p) in self.starts
+                ]
+                if not t_starts:
+                    continue
+                day_t = sum(d * v for d, p, v in t_starts)
+
+                for p_a in practice_assignments:
+                    p_starts = [
+                        (d, p, self.starts[p_a.id, d, p])
+                        for d in range(self.days)
+                        for p in range(self.periods_per_day)
+                        if (p_a.id, d, p) in self.starts
+                    ]
+                    if not p_starts:
+                        continue
+                    day_p = sum(d * v for d, p, v in p_starts)
+
+                    t_pinned = getattr(t_a, "is_pinned", False)
+                    p_pinned = getattr(p_a, "is_pinned", False)
+                    if not t_pinned and not p_pinned:
+                        self.model.Add(day_t <= day_p)
+
     def _add_soft_preferences(self):
         """กำหนด Objective Function:
         1. พยายามหลีกเลี่ยงคาบแรกเช้าตรู่หรือคาบเย็นถ้าไม่จำเป็น (สำหรับวิชาปกติ)
@@ -445,7 +510,10 @@ class TimetableSolver:
                 "fixed_day": getattr(a, "fixed_day", None),
                 "fixed_start_period": getattr(a, "fixed_start_period", None),
                 "fixed_room_id": getattr(a, "fixed_room_id", None),
-                "external_teacher_name": getattr(a, "external_teacher_name", None)
+                "external_teacher_name": getattr(a, "external_teacher_name", None),
+                "parallel_with_id": getattr(a, "parallel_with_id", None),
+                "component_type": getattr(a, "component_type", None),
+                "parent_assignment_id": getattr(a, "parent_assignment_id", None)
             })
 
         # จัดสรรห้องเรียนให้ทุกรายวิชาอย่างเป็นระบบ

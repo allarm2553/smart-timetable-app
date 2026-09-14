@@ -51,6 +51,9 @@ class LessonAssignmentDTO(BaseModel):
     fixed_start_period: Optional[int] = None
     fixed_room_id: Optional[str] = None
     external_teacher_name: Optional[str] = None
+    parallel_with_id: Optional[str] = None
+    component_type: Optional[str] = None
+    parent_assignment_id: Optional[str] = None
 
 class SolveRequest(BaseModel):
     teachers: List[TeacherDTO]
@@ -91,6 +94,22 @@ class ScheduleEntryDTO(BaseModel):
     fixed_start_period: Optional[int] = None
     fixed_room_id: Optional[str] = None
     external_teacher_name: Optional[str] = None
+    parallel_with_id: Optional[str] = None
+    component_type: Optional[str] = None
+    parent_assignment_id: Optional[str] = None
+
+class SplitTheoryPracticeRequest(BaseModel):
+    course_name: str
+    course_code: str = ""
+    theory_periods: int = 1
+    practice_periods: int = 3
+    primary_group_id: str
+    secondary_group_id: str
+    primary_teacher_id: str
+    secondary_teacher_id: str
+    theory_room_type: RoomType = RoomType.LECTURE_HALL
+    practice_room_type: RoomType = RoomType.CLASSROOM
+    sync_parallel: bool = True
 
 class SolveResponse(BaseModel):
     status: str

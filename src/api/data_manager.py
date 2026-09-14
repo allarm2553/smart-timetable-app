@@ -378,6 +378,146 @@ class TimetableDataManager:
         self._save()
         return {"course": course_item, "assignment": assignment_item}
 
+    def create_split_theory_practice_bundle(
+        self,
+        course_name: str,
+        course_code: str,
+        theory_periods: int,
+        practice_periods: int,
+        primary_group_id: str,
+        secondary_group_id: str,
+        primary_teacher_id: str,
+        secondary_teacher_id: str,
+        theory_room_type: str = "LECTURE_HALL",
+        practice_room_type: str = "CLASSROOM",
+        sync_parallel: bool = True
+    ) -> Dict[str, Any]:
+        """สร้างแพ็กเกจวิชา 'ทฤษฎีเรียนรวม 2 กลุ่ม / ปฏิบัติแยกกลุ่ม 2 อาจารย์'
+        โดยจะสร้าง 2 Master Courses (ทฤษฎี และ ปฏิบัติ)
+        และสร้าง 3 Lesson Assignments ย่อยที่ผูกเชื่อมโยงกัน
+        """
+        import time
+        import re
+
+        clean_code = re.sub(r'[^a-zA-Z0-9]', '_', course_code).strip('_') or f"COURSE_{int(time.time())}"
+        ts = int(time.time()) % 100000
+        bundle_id = f"BUNDLE_{clean_code}_{ts}"
+
+        # 1. Master Course สำหรับทฤษฎี
+        t_course_id = f"C_{clean_code}_THEORY"
+        if t_course_id not in self.courses:
+            self.courses[t_course_id] = {
+                "id": t_course_id,
+                "name": f"{course_name} (ทฤษฎี)",
+                "code": course_code,
+                "course_type": CourseType.THEORY.value,
+                "periods_per_session": theory_periods,
+                "sessions_per_week": 1,
+                "required_room_type": theory_room_type,
+                "allow_merge": True,
+                "base_id": None
+            }
+
+        # 2. Master Course สำหรับปฏิบัติ
+        p_course_id = f"C_{clean_code}_PRAC"
+        prac_code = course_code if course_code.startswith("ป.") else f"ป. {course_code}"
+        if p_course_id not in self.courses:
+            self.courses[p_course_id] = {
+                "id": p_course_id,
+                "name": f"{course_name} (ปฏิบัติ)",
+                "code": prac_code,
+                "course_type": CourseType.PRACTICE.value,
+                "periods_per_session": practice_periods,
+                "sessions_per_week": 1,
+                "required_room_type": practice_room_type,
+                "allow_merge": False,
+                "base_id": None
+            }
+
+        # รหัส Assignments ย่อย
+        clean_g1 = re.sub(r'[^a-zA-Z0-9]', '_', primary_group_id).strip('_')
+        clean_g2 = re.sub(r'[^a-zA-Z0-9]', '_', secondary_group_id).strip('_')
+
+        ass_theory_id = f"ASS_{clean_code}_T_{clean_g1}_{clean_g2}"
+        ass_p1_id = f"ASS_{clean_code}_P_{clean_g1}"
+        ass_p2_id = f"ASS_{clean_code}_P_{clean_g2}"
+
+        # ลบ Assignment เดิมที่ซ้ำถ้ามี
+        existing_ids = {ass_theory_id, ass_p1_id, ass_p2_id}
+        self.assignments = [a for a in self.assignments if a["id"] not in existing_ids]
+
+        # 3.1 แผนการสอนทฤษฎี (เรียนรวม 2 กลุ่ม ผู้สอนคืออาจารย์หลัก)
+        ass_theory = {
+            "id": ass_theory_id,
+            "course_id": t_course_id,
+            "primary_group_id": primary_group_id,
+            "secondary_group_id": secondary_group_id,
+            "teacher_id": primary_teacher_id,
+            "secondary_teacher_id": None,
+            "is_rotation": False,
+            "teaching_mode": "MERGED",
+            "is_pinned": False,
+            "fixed_day": None,
+            "fixed_start_period": None,
+            "fixed_room_id": None,
+            "external_teacher_name": None,
+            "parallel_with_id": None,
+            "component_type": "THEORY",
+            "parent_assignment_id": bundle_id
+        }
+
+        # 3.2 แผนการสอนปฏิบัติ กลุ่ม 1 (ผู้สอนคืออาจารย์หลัก)
+        ass_p1 = {
+            "id": ass_p1_id,
+            "course_id": p_course_id,
+            "primary_group_id": primary_group_id,
+            "secondary_group_id": None,
+            "teacher_id": primary_teacher_id,
+            "secondary_teacher_id": None,
+            "is_rotation": False,
+            "teaching_mode": "SINGLE",
+            "is_pinned": False,
+            "fixed_day": None,
+            "fixed_start_period": None,
+            "fixed_room_id": None,
+            "external_teacher_name": None,
+            "parallel_with_id": ass_p2_id if sync_parallel else None,
+            "component_type": "PRACTICE",
+            "parent_assignment_id": bundle_id
+        }
+
+        # 3.3 แผนการสอนปฏิบัติ กลุ่ม 2 (ผู้สอนคืออาจารย์ร่วม)
+        ass_p2 = {
+            "id": ass_p2_id,
+            "course_id": p_course_id,
+            "primary_group_id": secondary_group_id,
+            "secondary_group_id": None,
+            "teacher_id": secondary_teacher_id,
+            "secondary_teacher_id": None,
+            "is_rotation": False,
+            "teaching_mode": "SINGLE",
+            "is_pinned": False,
+            "fixed_day": None,
+            "fixed_start_period": None,
+            "fixed_room_id": None,
+            "external_teacher_name": None,
+            "parallel_with_id": ass_p1_id if sync_parallel else None,
+            "component_type": "PRACTICE",
+            "parent_assignment_id": bundle_id
+        }
+
+        self.assignments.extend([ass_theory, ass_p1, ass_p2])
+        self._sanitize_data()
+        self._save()
+
+        return {
+            "bundle_id": bundle_id,
+            "theory_course": self.courses[t_course_id],
+            "practice_course": self.courses[p_course_id],
+            "assignments": [ass_theory, ass_p1, ass_p2]
+        }
+
+
     def _find_assignment(self, assignment_id: str) -> Optional[Dict[str, Any]]:
         """ค้นหาแผนการสอนด้วย ID โดยรองรับทั้ง Exact Match และ Fallback Token/Course Code Match"""
         if not assignment_id:
@@ -573,7 +713,10 @@ class TimetableDataManager:
                         fixed_day=a.get("fixed_day"),
                         fixed_start_period=a.get("fixed_start_period"),
                         fixed_room_id=a.get("fixed_room_id"),
-                        external_teacher_name=a.get("external_teacher_name")
+                        external_teacher_name=a.get("external_teacher_name"),
+                        parallel_with_id=a.get("parallel_with_id"),
+                        component_type=a.get("component_type"),
+                        parent_assignment_id=a.get("parent_assignment_id")
                     )
                 )
         return teachers, rooms, groups, courses_dict, assignments

@@ -91,4 +91,8 @@ class LessonAssignment:
     fixed_start_period: Optional[int] = None     # คาบเริ่มต้นที่กำหนด (1-12)
     fixed_room_id: Optional[str] = None          # ห้องเรียนที่กำหนด
     external_teacher_name: Optional[str] = None  # ชื่อครูสามัญ/ผู้สอนนอกแผนก
+    parallel_with_id: Optional[str] = None       # จัดคาบเรียนขนานตรงกับ Assignment นี้ (วัน/คาบเดียวกัน)
+    component_type: Optional[str] = None         # ประเภทส่วนย่อย: "THEORY", "PRACTICE", หรือ None
+    parent_assignment_id: Optional[str] = None   # รหัสวิชาแม่ (สำหรับเชื่อมโยง ทฤษฎี-ปฏิบัติ)
+
 

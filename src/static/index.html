@@ -3339,8 +3339,8 @@
       document.getElementById('splitTheoryPracticeModal').classList.add('hidden');
     }
 
-    async function handleSaveSplitTheoryPractice(e) {
-      e.preventDefault();
+    async function handleSaveSplitTheoryPractice(e, andSolve = false) {
+      if (e && e.preventDefault) e.preventDefault();
       const source_assignment_id = document.getElementById('splitSourceAssignmentId').value || null;
       const code = document.getElementById('splitCourseCode').value.trim();
       const name = document.getElementById('splitCourseName').value.trim();
@@ -3369,10 +3369,12 @@
         }
       }
 
-      const btn = document.getElementById('btnSubmitSplitTheoryPractice');
-      const origHtml = btn.innerHTML;
-      btn.disabled = true;
-      btn.innerHTML = `<span class="animate-spin text-sm">⏳</span><span>กำลังสร้างและจัดตาราง...</span>`;
+      const activeBtn = andSolve ? document.getElementById('btnSplitSaveSolve') : document.getElementById('btnSplitSaveOnly');
+      const origHtml = activeBtn ? activeBtn.innerHTML : '';
+      if (activeBtn) {
+        activeBtn.disabled = true;
+        activeBtn.innerHTML = `<span class="animate-spin text-sm">⏳</span><span>กำลังบันทึก...</span>`;
+      }
 
       try {
         const payload = {
@@ -3410,8 +3412,19 @@
             updateBanner();
             saveStateToLocalStorage();
           } catch(e) {}
+          
           const modeLabel = teaching_mode === 'SINGLE' ? 'ผู้สอนคนเดียว' : 'สอนร่วม 2 อาจารย์';
-          showToast(`🌟 แปลงเป็นวิชาทฤษฎีรวมและปฏิบัติแยกกลุ่ม (${modeLabel}) เรียบร้อยแล้ว (กด 'สร้างตารางใหม่' เมื่อพร้อม)`, 'success', 4000);
+
+          if (andSolve) {
+            showToast(`🌟 แปลงเป็นวิชาทฤษฎีรวมและปฏิบัติแยกกลุ่ม (${modeLabel}) เรียบร้อยแล้ว กำลังสร้างตารางใหม่...`, 'info', 3000);
+            await saveAndSolveCurrent();
+          } else {
+            showToast(`💾 บันทึกแผนการสอน (${modeLabel}) เรียบร้อยแล้ว (ยังไม่ได้สร้างตาราง ท่านสามารถกด 'สร้างตารางใหม่' เมื่อพร้อม)`, 'success', 4500);
+            const statusEl = document.getElementById('statusInfo');
+            if (statusEl) {
+              statusEl.textContent = "สถานะ: บันทึกข้อมูลระบบแล้ว (รอสร้างตารางใหม่)";
+            }
+          }
         } else {
           alert('ไม่สามารถสร้างได้: ' + (data.detail || data.message || 'เกิดข้อผิดพลาด'));
         }
@@ -3419,9 +3432,11 @@
         console.error(err);
         showToast('⚠️ การเชื่อมต่อเซิร์ฟเวอร์ขัดข้อง (ระบบอาจกำลังรีสตาร์ท): ' + (err.message || ''), 'error', 6000);
       } finally {
-        btn.disabled = false;
-        btn.innerHTML = origHtml;
-        if (window.lucide) lucide.createIcons();
+        if (activeBtn) {
+          activeBtn.disabled = false;
+          activeBtn.innerHTML = origHtml;
+          if (window.lucide) lucide.createIcons();
+        }
       }
     }
 
@@ -5079,7 +5094,7 @@
       </div>
 
       <!-- Modal Body -->
-      <form onsubmit="handleSaveSplitTheoryPractice(event)" class="p-6 space-y-4 overflow-y-auto flex-1 text-xs">
+      <form onsubmit="handleSaveSplitTheoryPractice(event, false)" class="p-6 space-y-4 overflow-y-auto flex-1 text-xs">
         <input type="hidden" id="splitSourceAssignmentId">
         <input type="hidden" id="splitTeachingMode" value="CO_TEACHING">
         
@@ -5238,9 +5253,13 @@
           <button type="button" onclick="closeSplitTheoryPracticeModal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg transition cursor-pointer">
             ยกเลิก
           </button>
-          <button type="submit" id="btnSubmitSplitTheoryPractice" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg transition shadow-xs flex items-center space-x-1.5 cursor-pointer">
+          <button type="button" id="btnSplitSaveOnly" onclick="handleSaveSplitTheoryPractice(event, false)" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg transition shadow-xs flex items-center space-x-1.5 cursor-pointer" title="บันทึกแผนการสอนลงระบบโดยยังไม่ประมวลผลจัดตาราง (เหมาะสำหรับกรณียังกรอกข้อมูลไม่เสร็จ)">
+            <i data-lucide="save" class="w-4 h-4"></i>
+            <span>บันทึกข้อมูล (ยังไม่สร้างตาราง)</span>
+          </button>
+          <button type="button" id="btnSplitSaveSolve" onclick="handleSaveSplitTheoryPractice(event, true)" class="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg transition shadow-xs flex items-center space-x-1.5 cursor-pointer" title="บันทึกแผนการสอนและประมวลผลสร้างตารางเรียนทันที">
             <i data-lucide="sparkles" class="w-4 h-4"></i>
-            <span>สร้างแผนการสอนและจัดตารางอัตโนมัติ</span>
+            <span>บันทึกและสร้างตาราง</span>
           </button>
         </div>
       </form>

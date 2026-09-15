@@ -28,6 +28,7 @@ class TimetableDataManager:
         self.groups: List[Dict[str, Any]] = []
         self.courses: Dict[str, Dict[str, Any]] = {}
         self.assignments: List[Dict[str, Any]] = []
+        self.curriculum_plans: List[Dict[str, Any]] = []
         self._load_or_initialize()
 
     def _load_or_initialize(self):
@@ -42,6 +43,7 @@ class TimetableDataManager:
                     self.groups = data.get("groups", [])
                     self.courses = data.get("courses", {})
                     self.assignments = data.get("assignments", [])
+                    self.curriculum_plans = data.get("curriculum_plans", [])
                     self._sanitize_data()
                     return
             except Exception as e:
@@ -101,7 +103,8 @@ class TimetableDataManager:
                 "rooms": self.rooms,
                 "groups": self.groups,
                 "courses": self.courses,
-                "assignments": self.assignments
+                "assignments": self.assignments,
+                "curriculum_plans": self.curriculum_plans
             }, f, ensure_ascii=False, indent=2)
 
     def clear_all(self):
@@ -182,11 +185,128 @@ class TimetableDataManager:
             "rooms": self.rooms,
             "groups": self.groups,
             "courses": list(self.courses.values()),
-            "assignments": self.assignments
+            "assignments": self.assignments,
+            "curriculum_plans": self.curriculum_plans
         }
 
     def get_all(self) -> Dict[str, Any]:
         return self.get_all_data()
+
+    def get_curriculum_plans(self) -> List[Dict[str, Any]]:
+        """ดึงรายการแผนการเรียนตลอดหลักสูตรทั้งหมดที่มีในระบบ"""
+        return self.curriculum_plans
+
+    def save_curriculum_plan(self, plan: Dict[str, Any]) -> Dict[str, Any]:
+        """บันทึกหรืออัปเดตแผนการเรียนตลอดหลักสูตรใน Repository"""
+        plan_id = plan.get("id")
+        if not plan_id:
+            import time
+            plan_id = f"CURR_{int(time.time())}"
+            plan["id"] = plan_id
+
+        existing_idx = next((i for i, p in enumerate(self.curriculum_plans) if p.get("id") == plan_id or p.get("title") == plan.get("title")), None)
+        if existing_idx is not None:
+            self.curriculum_plans[existing_idx] = plan
+        else:
+            self.curriculum_plans.append(plan)
+
+        self._save()
+        return plan
+
+    def delete_curriculum_plan(self, plan_id: str) -> bool:
+        """ลบแผนการเรียนตลอดหลักสูตรออกจาก Repository"""
+        initial_len = len(self.curriculum_plans)
+        self.curriculum_plans = [p for p in self.curriculum_plans if p.get("id") != plan_id]
+        if len(self.curriculum_plans) < initial_len:
+            self._save()
+            return True
+        return False
+
+    def batch_apply_wizard_assignments(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        ประมวลผลและบันทึกผลลัพธ์จาก Step-by-Step Curriculum Wizard
+        รับ payload:
+        - groups: list of { id, name, level, student_count, pvs_18_weeks, is_internship }
+        - courses_to_apply: list of course configurations
+        """
+        import re
+
+        # 1. บันทึก/อัปเดตกลุ่มเรียนที่เลือก
+        incoming_groups = payload.get("groups", [])
+        for g in incoming_groups:
+            gid = g.get("id")
+            if not gid:
+                clean_gname = re.sub(r'[^a-zA-Z0-9]', '_', g.get("name", "GROUP")).strip('_')
+                gid = f"G_{clean_gname}"
+                g["id"] = gid
+            
+            matched = next((x for x in self.groups if x["id"] == gid), None)
+            if matched:
+                matched["name"] = g.get("name", matched["name"])
+                matched["level"] = g.get("level", matched["level"])
+            else:
+                self.groups.append({
+                    "id": gid,
+                    "name": g.get("name", gid),
+                    "level": g.get("level", "VOC_CERT"),
+                    "student_count": g.get("student_count", 20),
+                    "pvs_18_weeks": g.get("pvs_18_weeks", True),
+                    "is_internship": g.get("is_internship", False)
+                })
+
+        created_assignments_count = 0
+        created_courses_count = 0
+
+        # 2. สร้างรายวิชาและแผนการสอนสำหรับแต่ละวิชาและกลุ่ม
+        courses_to_apply = payload.get("courses_to_apply", [])
+        for c_item in courses_to_apply:
+            code = c_item.get("course_code", "").strip()
+            name = c_item.get("course_name", "").strip()
+            theory_p = int(c_item.get("theory_periods", 0))
+            prac_p = int(c_item.get("practice_periods", 0))
+            teaching_mode = c_item.get("teaching_mode", "CO_TEACHING")
+            t_room_id = c_item.get("theory_room_id") or None
+            
+            group_plans = c_item.get("group_plans", [])
+            for gp in group_plans:
+                p_gid = gp.get("primary_group_id")
+                s_gid = gp.get("secondary_group_id") or None
+                p_tid = gp.get("primary_teacher_id") or "T_UNASSIGNED"
+                s_tid = gp.get("secondary_teacher_id") or None
+                p_rm1 = gp.get("practice_room_1_id") or None
+                p_rm2 = gp.get("practice_room_2_id") or None
+                sync_p = gp.get("sync_parallel", True)
+
+                # สร้างหรืออัปเดตผ่าน create_split_theory_practice_bundle
+                res = self.create_split_theory_practice_bundle(
+                    course_name=name,
+                    course_code=code,
+                    theory_periods=theory_p,
+                    practice_periods=prac_p,
+                    primary_group_id=p_gid,
+                    secondary_group_id=s_gid,
+                    primary_teacher_id=p_tid,
+                    secondary_teacher_id=s_tid,
+                    teaching_mode=teaching_mode,
+                    theory_room_id=t_room_id,
+                    practice_room_1_id=p_rm1,
+                    practice_room_2_id=p_rm2,
+                    sync_parallel=sync_p
+                )
+                created_assignments_count += len(res.get("assignments", []))
+                created_courses_count += 1
+
+        self.sort_assignments()
+        self._sanitize_data()
+        self._save()
+
+        return {
+            "is_success": True,
+            "created_assignments_count": created_assignments_count,
+            "created_courses_count": created_courses_count,
+            "total_groups": len(self.groups),
+            "total_assignments": len(self.assignments)
+        }
 
     def import_project_data(self, project_data: Dict[str, Any]):
         """นำเข้าข้อมูลโปรเจ็คทั้งระบบ (ครู, ห้อง, กลุ่มเรียน, วิชา, แผนการสอน) และบันทึกลงไฟล์"""

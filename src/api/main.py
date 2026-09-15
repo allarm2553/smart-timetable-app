@@ -853,6 +853,55 @@ def preview_import_sheets(req: Dict[str, Any]):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+@app.get("/api/curriculum/plans")
+def api_get_curriculum_plans():
+    """ดึงรายชื่อและข้อมูลแผนการเรียนตลอดหลักสูตรทั้งหมด"""
+    return {"is_success": True, "plans": data_manager.get_curriculum_plans()}
+
+@app.post("/api/curriculum/upload")
+def api_upload_curriculum_plan(req: Dict[str, Any]):
+    """
+    อัปโหลดและแยกวิเคราะห์ไฟล์แผนการเรียนตลอดหลักสูตร และบันทึกเข้าสู่ Repository
+    Body: { filename: str, content_base64: str }
+    """
+    filename = req.get("filename", "curriculum.xlsx")
+    if "content_base64" not in req or not req["content_base64"]:
+        raise HTTPException(status_code=400, detail="กรุณาระบุ content_base64")
+    
+    b64_str = req["content_base64"]
+    if "," in b64_str:
+        b64_str = b64_str.split(",", 1)[1]
+    try:
+        file_bytes = base64.b64decode(b64_str)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"ไม่สามารถถอดรหัส Base64 ได้: {str(e)}")
+
+    try:
+        parsed_plan = BulkDataImporter.parse_curriculum_plan(file_bytes, filename)
+        saved_plan = data_manager.save_curriculum_plan(parsed_plan)
+        return {"is_success": True, "plan": saved_plan, "message": "นำเข้าแผนการเรียนตลอดหลักสูตรสำเร็จ"}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.delete("/api/curriculum/plans/{plan_id}")
+def api_delete_curriculum_plan(plan_id: str):
+    """ลบแผนการเรียนตลอดหลักสูตรออกจากระบบ"""
+    success = data_manager.delete_curriculum_plan(plan_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="ไม่พบแผนการเรียนที่ระบุ")
+    return {"is_success": True, "message": "ลบแผนการเรียนเรียบร้อยแล้ว"}
+
+@app.post("/api/curriculum/batch-apply")
+def api_batch_apply_curriculum(payload: Dict[str, Any]):
+    """
+    นำเข้าและผูกวิชากับกลุ่มเรียน/ครูผู้สอนจากผลลัพธ์ของ Step-by-Step Curriculum Wizard
+    """
+    try:
+        res = data_manager.batch_apply_wizard_assignments(payload)
+        return {"is_success": True, "data": res, "message": "บันทึกแผนการสอนจากตัวช่วยสำเร็จเรียบร้อย"}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
 @app.post("/api/import/process")
 def process_bulk_import(req: Dict[str, Any]):
     """

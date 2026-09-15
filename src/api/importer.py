@@ -117,9 +117,7 @@ class BulkDataImporter:
                     yr_raw = sem_match.group(2)
                     yr_full = yr_raw if len(yr_raw) == 4 else f"25{yr_raw}"
                     term_label = {"1": "ภาคเรียนที่ 1", "2": "ภาคเรียนที่ 2", "S": "ภาคฤดูร้อน"}.get(term_str, f"เทอม {term_str}")
-                    # ประมาณชั้นปี
-                    yr_map = {"2569": "ปวช.1", "2570": "ปวช.2", "2571": "ปวช.3",
-                              "2572": "ปวส.1", "2573": "ปวส.2"}
+                    yr_map = {"2569": "ปวช.1", "2570": "ปวช.2", "2571": "ปวช.3", "2572": "ปวส.1", "2573": "ปวส.2"}
                     yr_label = yr_map.get(yr_full, f"รุ่น {yr_full}")
                     display_name = f"{term_str}/{yr_full} — {term_label} ({yr_label})"
 
@@ -132,6 +130,138 @@ class BulkDataImporter:
             return result
         except Exception as e:
             raise ValueError(f"ไม่สามารถอ่านรายชื่อชีทจากไฟล์ได้: {str(e)}")
+
+    @classmethod
+    def parse_curriculum_plan(cls, file_bytes: bytes, filename: str) -> Dict[str, Any]:
+        """
+        แยกวิเคราะห์ไฟล์ Excel แผนการเรียนตลอดหลักสูตร (หลายชีท) 
+        ให้อยู่ในโครงสร้าง Curriculum Plan Repository ที่พร้อมใช้งานสำหรับ Wizard
+        """
+        try:
+            wb = openpyxl.load_workbook(io.BytesIO(file_bytes), data_only=True)
+            plan_id = f"CURR_{re.sub(r'[^a-zA-Z0-9]', '_', filename).strip('_')}"
+            
+            # ดึงชื่อแผนการเรียนจากแถวแรกของชีทแรก หรือจากชื่อไฟล์
+            plan_title = filename.replace(".xlsx", "").replace(".xls", "")
+            if wb.sheetnames:
+                ws0 = wb[wb.sheetnames[0]]
+                for r in range(1, min(6, ws0.max_row or 1) + 1):
+                    val = str(ws0.cell(r, 1).value or ws0.cell(r, 2).value or "").strip()
+                    if any(k in val for k in ["แผนการเรียน", "หลักสูตร", "สาขาวิชา", "สาขางาน", "ประเภทวิชา"]):
+                        plan_title = val
+                        break
+
+            all_sheet_rows = cls._parse_xlsx(file_bytes)
+            # จัดกลุ่มตาม _sheet_name
+            sheets_map: Dict[str, List[Dict[str, str]]] = {}
+            for r in all_sheet_rows:
+                sn = r.get("_sheet_name", "Default")
+                sheets_map.setdefault(sn, []).append(r)
+
+            semesters = []
+            for sheet_name in sorted(wb.sheetnames, key=lambda s: group_sort_key(s)):
+                rows = sheets_map.get(sheet_name, [])
+                
+                # แยกเทอมและปี
+                sem_match = re.match(r'^([0-9]|S|s)\.(25\d{2}|\d{2})$', sheet_name.strip())
+                term_str = sem_match.group(1).upper() if sem_match else "1"
+                yr_raw = sem_match.group(2) if sem_match else "2569"
+                yr_full = yr_raw if len(yr_raw) == 4 else f"25{yr_raw}"
+                
+                term_label = {"1": "ภาคเรียนที่ 1", "2": "ภาคเรียนที่ 2", "S": "ภาคฤดูร้อน"}.get(term_str, f"เทอม {term_str}")
+                yr_map = {"2569": "ปวช.1", "2570": "ปวช.2", "2571": "ปวช.3", "2572": "ปวส.1", "2573": "ปวส.2"}
+                level_label = yr_map.get(yr_full, "ปวช.1")
+                display_name = f"{term_str}/{yr_full} — {term_label} ({level_label})" if sem_match else sheet_name
+
+                courses = []
+                seen_codes = set()
+                for r in rows:
+                    raw_code = cls._find_field(r, ["รหัสวิชา", "รหัส", "code", "course_code", "course code"])
+                    if not raw_code:
+                        for k, v in r.items():
+                            if not k.startswith("_") and cls.is_valid_course_code(v):
+                                raw_code = v
+                                break
+
+                    code = cls._clean_course_code(raw_code)
+                    if not cls.is_valid_course_code(code) or code in seen_codes:
+                        continue
+
+                    name = cls._find_field(r, ["รายวิชา", "ชื่อวิชา", "ชื่อรายวิชา", "name", "course_name"], exclude_keywords=["รหัส", "กลุ่ม", "ประเภท", "หมวด"])
+                    if not name or cls.is_valid_course_code(name):
+                        for k, v in r.items():
+                            if not k.startswith("_") and v and v != raw_code and len(v) > 2 and not cls.is_valid_course_code(v):
+                                name = v
+                                break
+                    if not name:
+                        name = f"วิชา {code}"
+
+                    # ดึง ท-ป-น
+                    theory_raw = cls._find_field(r, ["ท", "ท.", "ทฤษฎี", "theory"])
+                    practice_raw = cls._find_field(r, ["ป", "ป.", "ปฏิบัติ", "practice", "lab"])
+                    credits_raw = cls._find_field(r, ["น", "น.", "หน่วยกิต", "credit", "credits"])
+
+                    t_val = 0
+                    p_val = 0
+                    c_val = 0
+                    try:
+                        if theory_raw: t_val = int(float(theory_raw))
+                    except Exception: pass
+                    try:
+                        if practice_raw: p_val = int(float(practice_raw))
+                    except Exception: pass
+                    try:
+                        if credits_raw: c_val = int(float(credits_raw))
+                    except Exception: pass
+
+                    total_periods = t_val + p_val
+                    if total_periods <= 0:
+                        total_periods = 2
+                        p_val = 2
+
+                    if t_val > 0 and p_val > 0:
+                        c_type = CourseType.THEORY_PRACTICE.value
+                    elif t_val > 0 and p_val == 0:
+                        c_type = CourseType.THEORY.value
+                    else:
+                        c_type = CourseType.PRACTICE.value
+
+                    room_type = cls._determine_room_type(name, c_type, "")
+
+                    courses.append({
+                        "code": code,
+                        "name": name,
+                        "theory_hours": t_val,
+                        "practice_hours": p_val,
+                        "credits": c_val,
+                        "total_periods": total_periods,
+                        "course_type": c_type,
+                        "room_type": room_type
+                    })
+                    seen_codes.add(code)
+
+                # เรียงรายวิชาตามรหัสวิชา
+                courses.sort(key=lambda c: [int(x) if x.isdigit() else x for x in re.split(r'(\d+)', c["code"])])
+
+                semesters.append({
+                    "sheet_name": sheet_name,
+                    "semester_key": f"{term_str}.{yr_full}" if sem_match else sheet_name,
+                    "display_name": display_name,
+                    "term": term_str,
+                    "year": yr_full,
+                    "level": level_label,
+                    "courses_count": len(courses),
+                    "courses": courses
+                })
+
+            return {
+                "id": plan_id,
+                "filename": filename,
+                "title": plan_title,
+                "semesters": semesters
+            }
+        except Exception as e:
+            raise ValueError(f"ไม่สามารถแปลงไฟล์แผนการเรียนได้: {str(e)}")
 
     @classmethod
     def parse_file_to_rows(cls, file_bytes: bytes, filename: str, selected_sheets: Optional[List[str]] = None) -> List[Dict[str, str]]:

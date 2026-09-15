@@ -111,6 +111,10 @@
       </div>
 
       <div class="flex items-center space-x-2">
+        <button onclick="openCurriculumWizardModal()" class="flex items-center space-x-1.5 px-3 py-2 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white text-xs font-bold rounded-md shadow-xs transition active:scale-95 font-display" title="สร้างแผนการสอนจากแผนการเรียนตลอดหลักสูตรแบบเป็นขั้นตอน 5 สเต็ป">
+          <i data-lucide="compass" class="w-4 h-4 text-amber-100"></i>
+          <span>ตัวช่วยจัดแผนการเรียน (Wizard)</span>
+        </button>
         <button onclick="openAnalyticsModal()" class="flex items-center space-x-1.5 px-3 py-2 bg-purple-700 hover:bg-purple-800 text-white text-xs font-semibold rounded-md shadow-xs transition font-display">
           <i data-lucide="bar-chart-3" class="w-4 h-4 text-purple-200"></i>
           <span>วิเคราะห์ภาระงาน</span>
@@ -1382,6 +1386,857 @@
         btn.disabled = false;
         btn.innerHTML = origText;
         lucide.createIcons();
+      }
+    }
+
+    // ==========================================
+    // STEP-BY-STEP CURRICULUM WIZARD CONTROLLER
+    // ==========================================
+    let wizardCurriculumPlans = [];
+    let wizardCurrentStep = 1;
+    let wizardSelectedPlan = null;
+    let wizardSelectedSemester = null;
+    let wizardSelectedCourses = new Set(); // Set of course codes
+    let wizardSelectedGroupIds = new Set(); // Set of group IDs
+    let wizardCustomGroups = []; // List of newly created groups in wizard
+    let wizardCourseConfigs = {}; // code -> { group_plans: [...] }
+
+    async function openCurriculumWizardModal() {
+      wizardCurrentStep = 1;
+      wizardSelectedPlan = null;
+      wizardSelectedSemester = null;
+      wizardSelectedCourses.clear();
+      wizardSelectedGroupIds.clear();
+      wizardCustomGroups = [];
+      wizardCourseConfigs = {};
+
+      document.getElementById('curriculumWizardModal')?.classList.remove('hidden');
+
+      // โหลดข้อมูลแผนการเรียนทั้งหมดจาก API
+      try {
+        const res = await fetch('/api/curriculum/plans');
+        if (res.ok) {
+          const data = await res.json();
+          wizardCurriculumPlans = data.plans || [];
+        }
+      } catch (err) {
+        console.error("Failed to load curriculum plans:", err);
+      }
+
+      // โหลดข้อมูล Data Manager สำหรับรายชื่อกลุ่ม/ครู/ห้อง
+      if (typeof loadDataManagerData === 'function') {
+        await loadDataManagerData();
+      }
+
+      renderWizardStep(1);
+      if (window.lucide) lucide.createIcons();
+    }
+
+    function closeCurriculumWizardModal() {
+      document.getElementById('curriculumWizardModal')?.classList.add('hidden');
+    }
+
+    async function onWizardFileUpload(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const uploadBtnText = document.getElementById('wizardUploadBtnText');
+      if (uploadBtnText) uploadBtnText.textContent = `⏳ กำลังประมวลผล ${file.name}...`;
+
+      try {
+        const reader = new FileReader();
+        const base64Promise = new Promise((resolve, reject) => {
+          reader.onload = () => resolve(reader.result);
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+        const dataUrl = await base64Promise;
+
+        const res = await fetch('/api/curriculum/upload', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ filename: file.name, content_base64: dataUrl })
+        });
+        const result = await res.json();
+        if (!res.ok || !result.is_success) {
+          throw new Error(result.detail || "อัปโหลดไม่สำเร็จ");
+        }
+
+        showToast(`✅ นำเข้าแผนการเรียน "${result.plan.title}" สำเร็จ!`, 'success');
+
+        // รีเฟรชรายชื่อแผน
+        const resPlans = await fetch('/api/curriculum/plans');
+        if (resPlans.ok) {
+          const d = await resPlans.json();
+          wizardCurriculumPlans = d.plans || [];
+        }
+
+        // เลือกแผนที่เพิ่งอัปโหลด
+        wizardSelectedPlan = wizardCurriculumPlans.find(p => p.id === result.plan.id) || result.plan;
+        renderWizardStep1();
+
+      } catch (err) {
+        alert(`❌ เกิดข้อผิดพลาด: ${err.message}`);
+      } finally {
+        if (uploadBtnText) uploadBtnText.textContent = `เลือกไฟล์ Excel ตลอดหลักสูตร`;
+        event.target.value = '';
+        if (window.lucide) lucide.createIcons();
+      }
+    }
+
+    function goToWizardStep(stepNum) {
+      if (stepNum > wizardCurrentStep) {
+        if (wizardCurrentStep === 1 && !validateWizardStep1()) return;
+        if (wizardCurrentStep === 2 && !validateWizardStep2()) return;
+        if (wizardCurrentStep === 3 && !validateWizardStep3()) return;
+        if (wizardCurrentStep === 4 && !validateWizardStep4()) return;
+      }
+      wizardCurrentStep = stepNum;
+      renderWizardStep(stepNum);
+    }
+
+    function wizardNextStep() {
+      if (wizardCurrentStep === 1) {
+        if (!validateWizardStep1()) return;
+        wizardCurrentStep = 2;
+      } else if (wizardCurrentStep === 2) {
+        if (!validateWizardStep2()) return;
+        wizardCurrentStep = 3;
+      } else if (wizardCurrentStep === 3) {
+        if (!validateWizardStep3()) return;
+        wizardCurrentStep = 4;
+      } else if (wizardCurrentStep === 4) {
+        if (!validateWizardStep4()) return;
+        wizardCurrentStep = 5;
+      }
+      renderWizardStep(wizardCurrentStep);
+    }
+
+    function wizardPrevStep() {
+      if (wizardCurrentStep > 1) {
+        wizardCurrentStep--;
+        renderWizardStep(wizardCurrentStep);
+      }
+    }
+
+    function renderWizardStep(stepNum) {
+      // 1. อัปเดต Progress Dots & Lines
+      for (let i = 1; i <= 5; i++) {
+        const dot = document.getElementById(`stepDot${i}`);
+        const label = document.getElementById(`stepLabel${i}`);
+        const view = document.getElementById(`wizardStepView${i}`);
+        const line = document.getElementById(`stepLine${i}`);
+
+        if (view) view.classList.toggle('hidden', i !== stepNum);
+
+        if (dot && label) {
+          if (i < stepNum) {
+            dot.className = "w-7 h-7 rounded-full bg-emerald-600 text-white font-bold flex items-center justify-center text-xs shadow-xs transition";
+            dot.innerHTML = "✓";
+            label.className = "font-bold text-emerald-900 text-[11px]";
+          } else if (i === stepNum) {
+            dot.className = "w-7 h-7 rounded-full bg-indigo-600 text-white font-bold flex items-center justify-center text-xs shadow-xs transition ring-2 ring-indigo-300";
+            dot.innerHTML = String(i);
+            label.className = "font-bold text-indigo-900 text-[11px]";
+          } else {
+            dot.className = "w-7 h-7 rounded-full bg-slate-200 text-slate-600 font-bold flex items-center justify-center text-xs transition";
+            dot.innerHTML = String(i);
+            label.className = "font-medium text-slate-500 text-[11px]";
+          }
+        }
+        if (line) {
+          line.className = i < stepNum ? "flex-1 h-0.5 bg-emerald-500 mx-2" : "flex-1 h-0.5 bg-slate-200 mx-2";
+        }
+      }
+
+      // 2. ปรับปุ่ม Footer
+      const btnPrev = document.getElementById('btnWizardPrev');
+      const btnNext = document.getElementById('btnWizardNext');
+      const btnSaveOnly = document.getElementById('btnWizardSaveOnly');
+      const btnSaveSolve = document.getElementById('btnWizardSaveSolve');
+
+      if (btnPrev) btnPrev.classList.toggle('hidden', stepNum === 1);
+      if (btnNext) btnNext.classList.toggle('hidden', stepNum === 5);
+      if (btnSaveOnly) btnSaveOnly.classList.toggle('hidden', stepNum !== 5);
+      if (btnSaveSolve) btnSaveSolve.classList.toggle('hidden', stepNum !== 5);
+
+      // 3. Render เนื้อหาของแต่ละ Step
+      if (stepNum === 1) renderWizardStep1();
+      else if (stepNum === 2) renderWizardStep2();
+      else if (stepNum === 3) renderWizardStep3();
+      else if (stepNum === 4) renderWizardStep4();
+      else if (stepNum === 5) renderWizardStep5();
+
+      if (window.lucide) lucide.createIcons();
+    }
+
+    // Step 1: แผนการเรียน & ชั้นปี
+    function renderWizardStep1() {
+      const selectPlan = document.getElementById('wizardPlanSelect');
+      if (selectPlan) {
+        if (wizardCurriculumPlans.length === 0) {
+          selectPlan.innerHTML = '<option value="">-- ยังไม่มีแผนการเรียนในระบบ (โปรดอัปโหลดไฟล์ด้านขวา) --</option>';
+        } else {
+          selectPlan.innerHTML = '<option value="">-- เลือกแผนการเรียนตลอดหลักสูตร --</option>' +
+            wizardCurriculumPlans.map(p => `<option value="${p.id}" ${wizardSelectedPlan && wizardSelectedPlan.id === p.id ? 'selected' : ''}>${p.title} (${p.semesters ? p.semesters.length : 0} ภาคเรียน)</option>`).join('');
+          
+          // ถ้ามีแผนเดียวและยังไม่ได้เลือก ให้เลือกอันแรกอัตโนมัติ
+          if (wizardCurriculumPlans.length === 1 && !wizardSelectedPlan) {
+            selectPlan.selectedIndex = 1;
+          }
+        }
+      }
+      onWizardPlanSelectChange();
+    }
+
+    function onWizardPlanSelectChange() {
+      const planId = document.getElementById('wizardPlanSelect')?.value;
+      wizardSelectedPlan = wizardCurriculumPlans.find(p => p.id === planId) || null;
+
+      const infoBox = document.getElementById('wizardPlanInfoBox');
+      const selectSem = document.getElementById('wizardSemesterSelect');
+
+      if (!wizardSelectedPlan) {
+        if (infoBox) infoBox.classList.add('hidden');
+        if (selectSem) selectSem.innerHTML = '<option value="">-- โปรดเลือกแผนการเรียนก่อน --</option>';
+        return;
+      }
+
+      if (infoBox) {
+        infoBox.classList.remove('hidden');
+        infoBox.innerHTML = `
+          <div class="font-bold text-indigo-950">${wizardSelectedPlan.title}</div>
+          <div class="text-slate-500">ไฟล์: ${wizardSelectedPlan.filename} | จำนวน ${wizardSelectedPlan.semesters ? wizardSelectedPlan.semesters.length : 0} ภาคเรียนในหลักสูตร</div>
+        `;
+      }
+
+      updateWizardSemesterDropdown();
+    }
+
+    function onWizardLevelChange() {
+      updateWizardSemesterDropdown();
+    }
+
+    function updateWizardSemesterDropdown() {
+      const selectSem = document.getElementById('wizardSemesterSelect');
+      if (!selectSem || !wizardSelectedPlan) return;
+
+      const levelVal = document.getElementById('wizardLevelSelect')?.value || 'ALL';
+      let sems = wizardSelectedPlan.semesters || [];
+      if (levelVal !== 'ALL') {
+        sems = sems.filter(s => s.level === levelVal || (s.display_name && s.display_name.includes(levelVal)));
+      }
+
+      if (sems.length === 0) {
+        selectSem.innerHTML = '<option value="">-- ไม่พบภาคเรียนสำหรับระดับชั้นนี้ --</option>';
+        wizardSelectedSemester = null;
+      } else {
+        selectSem.innerHTML = '<option value="">-- เลือกภาคเรียน/ปีการศึกษา --</option>' +
+          sems.map(s => `<option value="${s.semester_key}" ${wizardSelectedSemester && wizardSelectedSemester.semester_key === s.semester_key ? 'selected' : ''}>${s.display_name} (${s.courses_count || (s.courses ? s.courses.length : 0)} วิชา)</option>`).join('');
+        // ถ้ามีภาคเรียนเดียว หรือยังไม่ได้เลือก ให้เลือกอันแรก
+        if (sems.length === 1 || (!wizardSelectedSemester && sems.length > 0)) {
+          selectSem.selectedIndex = 1;
+        }
+        onWizardSemesterChange();
+      }
+    }
+
+    function onWizardSemesterChange() {
+      const semKey = document.getElementById('wizardSemesterSelect')?.value;
+      if (wizardSelectedPlan && semKey) {
+        wizardSelectedSemester = (wizardSelectedPlan.semesters || []).find(s => s.semester_key === semKey) || null;
+      } else {
+        wizardSelectedSemester = null;
+      }
+    }
+
+    function validateWizardStep1() {
+      if (!wizardSelectedPlan) {
+        alert("กรุณาเลือกแผนการเรียนตลอดหลักสูตร หรืออัปโหลดไฟล์ Excel ก่อนดำเนินการ");
+        return false;
+      }
+      if (!wizardSelectedSemester) {
+        alert("กรุณาเลือกภาคเรียน/ปีการศึกษาที่ต้องการเปิดสอน");
+        return false;
+      }
+      return true;
+    }
+
+    // Step 2: เช็คลิสต์รายวิชา
+    function renderWizardStep2() {
+      const tbody = document.getElementById('wizardCoursesTbody');
+      if (!tbody || !wizardSelectedSemester) return;
+
+      const courses = wizardSelectedSemester.courses || [];
+      if (courses.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" class="py-8 text-center text-slate-400 font-medium">ไม่พบรายวิชาในภาคเรียนนี้</td></tr>`;
+        return;
+      }
+
+      // ถ้ายังไม่เคยเลือกเลย ให้เลือกทั้งหมดเป็นค่าเริ่มต้น
+      if (wizardSelectedCourses.size === 0) {
+        courses.forEach(c => wizardSelectedCourses.add(c.code));
+      }
+
+      tbody.innerHTML = courses.map(c => {
+        const isChecked = wizardSelectedCourses.has(c.code);
+        const typeBadge = c.course_type === 'THEORY_PRACTICE'
+          ? `<span class="px-2 py-0.5 rounded bg-purple-100 text-purple-800 font-bold text-[10px]">ทฤษฎี+ปฏิบัติ</span>`
+          : c.course_type === 'THEORY'
+          ? `<span class="px-2 py-0.5 rounded bg-blue-100 text-blue-800 font-bold text-[10px]">ทฤษฎี</span>`
+          : `<span class="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 font-bold text-[10px]">ปฏิบัติ</span>`;
+
+        return `
+          <tr class="hover:bg-indigo-50/50 transition cursor-pointer" onclick="toggleWizardCourse('${c.code}', event)">
+            <td class="py-2.5 px-3 text-center" onclick="event.stopPropagation()">
+              <input type="checkbox" value="${c.code}" ${isChecked ? 'checked' : ''} onchange="onWizardCourseCheckChange('${c.code}', this.checked)" class="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500">
+            </td>
+            <td class="py-2.5 px-3 font-mono font-bold text-slate-800">${c.code}</td>
+            <td class="py-2.5 px-3 font-semibold text-slate-900">${c.name}</td>
+            <td class="py-2.5 px-3 text-center font-mono font-bold text-indigo-700">${c.theory_hours}-${c.practice_hours}-${c.credits}</td>
+            <td class="py-2.5 px-3 text-center">${typeBadge}</td>
+            <td class="py-2.5 px-3 text-center font-bold text-slate-700">${c.total_periods} คาบ</td>
+          </tr>
+        `;
+      }).join('');
+
+      updateWizardCoursesStats();
+    }
+
+    function toggleWizardCourse(code, e) {
+      if (e.target.tagName === 'INPUT') return;
+      const isChecked = wizardSelectedCourses.has(code);
+      onWizardCourseCheckChange(code, !isChecked);
+      renderWizardStep2();
+    }
+
+    function onWizardCourseCheckChange(code, checked) {
+      if (checked) wizardSelectedCourses.add(code);
+      else wizardSelectedCourses.delete(code);
+      updateWizardCoursesStats();
+    }
+
+    function setAllWizardCourses(selectAll) {
+      const courses = wizardSelectedSemester?.courses || [];
+      if (selectAll) {
+        courses.forEach(c => wizardSelectedCourses.add(c.code));
+      } else {
+        wizardSelectedCourses.clear();
+      }
+      renderWizardStep2();
+    }
+
+    function updateWizardCoursesStats() {
+      const courses = wizardSelectedSemester?.courses || [];
+      const selectedList = courses.filter(c => wizardSelectedCourses.has(c.code));
+      const totalPeriods = selectedList.reduce((sum, c) => sum + (c.total_periods || 0), 0);
+
+      const countEl = document.getElementById('wizardSelectedCoursesCount');
+      const sumEl = document.getElementById('wizardSelectedPeriodsSum');
+      const checkAll = document.getElementById('wizardCheckAll');
+
+      if (countEl) countEl.textContent = `เลือก ${selectedList.length} จาก ${courses.length} วิชา`;
+      if (sumEl) sumEl.textContent = `รวม ${totalPeriods} คาบ/สัปดาห์`;
+      if (checkAll) checkAll.checked = courses.length > 0 && selectedList.length === courses.length;
+    }
+
+    function validateWizardStep2() {
+      if (wizardSelectedCourses.size === 0) {
+        alert("กรุณาเลือกรายวิชาอย่างน้อย 1 วิชาจากเช็คลิสต์");
+        return false;
+      }
+      return true;
+    }
+
+    // Step 3: กลุ่มผู้เรียน
+    function renderWizardStep3() {
+      const container = document.getElementById('wizardGroupsList');
+      if (!container) return;
+
+      const existingGroups = (fullDataManagerData?.groups || []).concat(wizardCustomGroups);
+      // เรียงกลุ่ม
+      const allGroups = [...new Map(existingGroups.map(g => [g.id, g])).values()];
+
+      // ถ้ายังไม่เคยเลือกเลย และมีกลุ่มที่ตรงกับระดับชั้น ให้เลือกกลุ่มเหล่านั้นเป็นค่าเริ่มต้น
+      if (wizardSelectedGroupIds.size === 0 && wizardSelectedSemester) {
+        const semLvl = wizardSelectedSemester.level; // e.g. ปวช.1
+        const semKey = wizardSelectedSemester.semester_key; // e.g. 2.2569
+        allGroups.forEach(g => {
+          if ((semLvl && g.name.includes(semLvl)) || g.name.includes(semKey) || (g.level === 'VOC_CERT' && semLvl.startsWith('ปวช'))) {
+            wizardSelectedGroupIds.add(g.id);
+          }
+        });
+        if (wizardSelectedGroupIds.size === 0 && allGroups.length > 0) {
+          wizardSelectedGroupIds.add(allGroups[0].id);
+        }
+      }
+
+      container.innerHTML = allGroups.map(g => {
+        const isChecked = wizardSelectedGroupIds.has(g.id);
+        const lvlTag = g.level === 'HIGH_VOC_CERT'
+          ? `<span class="px-1.5 py-0.2 bg-purple-100 text-purple-800 text-[10px] font-bold rounded">ปวส.</span>`
+          : `<span class="px-1.5 py-0.2 bg-blue-100 text-blue-800 text-[10px] font-bold rounded">ปวช.</span>`;
+
+        return `
+          <label class="flex items-center gap-2.5 p-2.5 bg-white border ${isChecked ? 'border-indigo-500 bg-indigo-50/40 ring-1 ring-indigo-400' : 'border-slate-200'} rounded-lg hover:bg-indigo-50/60 cursor-pointer transition">
+            <input type="checkbox" value="${g.id}" ${isChecked ? 'checked' : ''} onchange="onWizardGroupCheckChange('${g.id}', this.checked)" class="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500 shrink-0">
+            <div class="overflow-hidden">
+              <div class="font-bold text-slate-800 text-xs truncate flex items-center gap-1">${g.name} ${lvlTag}</div>
+              <div class="text-[10px] text-slate-500">${g.student_count || 20} คน</div>
+            </div>
+          </label>
+        `;
+      }).join('');
+
+      updateWizardGroupsStats();
+    }
+
+    function onWizardGroupCheckChange(gid, checked) {
+      if (checked) wizardSelectedGroupIds.add(gid);
+      else wizardSelectedGroupIds.delete(gid);
+      renderWizardStep3();
+    }
+
+    function toggleWizardNewGroupForm() {
+      const form = document.getElementById('wizardNewGroupForm');
+      if (form) form.classList.toggle('hidden');
+    }
+
+    function submitWizardNewGroup() {
+      const nameInput = document.getElementById('wizardNewGroupName');
+      const lvlSelect = document.getElementById('wizardNewGroupLevel');
+      const name = nameInput?.value.trim();
+      const level = lvlSelect?.value || 'VOC_CERT';
+
+      if (!name) {
+        alert('กรุณาระบุชื่อกลุ่มเรียน เช่น ชอ.1/1 หรือ ชอ.1/2');
+        return;
+      }
+
+      const gid = `G_${name.replace(/[^a-zA-Z0-9ก-๙]/g, '_')}_${Date.now().toString().slice(-4)}`;
+      const newG = {
+        id: gid,
+        name: name,
+        level: level,
+        student_count: 20,
+        pvs_18_weeks: true,
+        is_internship: name.includes('ฝึกงาน')
+      };
+
+      wizardCustomGroups.push(newG);
+      wizardSelectedGroupIds.add(gid);
+
+      if (nameInput) nameInput.value = '';
+      toggleWizardNewGroupForm();
+      renderWizardStep3();
+      showToast(`✅ เพิ่มกลุ่ม "${name}" เรียบร้อยแล้ว`, 'success');
+    }
+
+    function updateWizardGroupsStats() {
+      const summaryEl = document.getElementById('wizardSelectedGroupsSummary');
+      if (summaryEl) {
+        summaryEl.textContent = `เลือกแล้ว ${wizardSelectedGroupIds.size} กลุ่มเรียน`;
+      }
+    }
+
+    function validateWizardStep3() {
+      if (wizardSelectedGroupIds.size === 0) {
+        alert("กรุณาเลือกกลุ่มผู้เรียนอย่างน้อย 1 กลุ่ม");
+        return false;
+      }
+      return true;
+    }
+
+    // Step 4: มอบหมายครู รูปแบบการเรียน และห้องเรียน
+    function renderWizardStep4() {
+      const container = document.getElementById('wizardCourseCardsContainer');
+      if (!container || !wizardSelectedSemester) return;
+
+      const courses = (wizardSelectedSemester.courses || []).filter(c => wizardSelectedCourses.has(c.code));
+      const allGroups = (fullDataManagerData?.groups || []).concat(wizardCustomGroups);
+      const selectedGroups = allGroups.filter(g => wizardSelectedGroupIds.has(g.id));
+      const teachers = fullDataManagerData?.teachers || [];
+      const rooms = fullDataManagerData?.rooms || [];
+
+      container.innerHTML = courses.map(c => {
+        const isPureTheory = (c.theory_hours > 0 && c.practice_hours === 0);
+        const isPurePractice = (c.theory_hours === 0 && c.practice_hours > 0);
+
+        // Group pairings setup (Pair 2 groups if multiple)
+        let groupPairingsHtml = '';
+        for (let i = 0; i < selectedGroups.length; i += 2) {
+          const g1 = selectedGroups[i];
+          const g2 = (i + 1 < selectedGroups.length) ? selectedGroups[i + 1] : null;
+          const pairIdx = Math.floor(i / 2);
+
+          groupPairingsHtml += `
+            <div class="bg-white border border-indigo-100 rounded-xl p-3.5 space-y-3 shadow-2xs">
+              <div class="flex items-center justify-between pb-2 border-b border-slate-100 font-display">
+                <span class="font-bold text-slate-800 text-xs flex items-center gap-1.5">
+                  <span class="w-5 h-5 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-[10px] font-bold">${pairIdx + 1}</span>
+                  <span>กลุ่มเรียน: <strong>${g1.name}</strong> ${g2 ? `และ <strong>${g2.name}</strong>` : '(เรียนเดี่ยว)'}</span>
+                </span>
+                ${g2 && !isPurePractice ? `
+                  <div class="flex items-center gap-1.5">
+                    <span class="text-[11px] text-slate-500">ทฤษฎี:</span>
+                    <select id="w_mode_${c.code}_${pairIdx}" class="bg-indigo-50 border border-indigo-200 rounded px-2 py-0.5 text-xs font-bold text-indigo-900">
+                      <option value="MERGED" selected>👥 เรียนรวมกัน (2 กลุ่ม)</option>
+                      <option value="SINGLE">👤 แยกเรียนเดี่ยว</option>
+                    </select>
+                  </div>
+                ` : ''}
+              </div>
+
+              <!-- Theory Config (If course has theory) -->
+              ${!isPurePractice ? `
+                <div class="bg-blue-50/60 border border-blue-200 rounded-lg p-3 space-y-2">
+                  <div class="font-bold text-blue-950 text-xs flex items-center justify-between">
+                    <span>📖 ภาคทฤษฎี (${c.theory_hours} คาบ)</span>
+                    <span class="text-[10px] bg-blue-200 text-blue-900 px-1.5 py-0.5 rounded font-bold">${g2 ? 'ทฤษฎีรวม' : 'ทฤษฎีเดี่ยว'}</span>
+                  </div>
+                  <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <div>
+                      <label class="block text-[11px] font-bold text-slate-700 mb-0.5">อาจารย์ผู้สอนทฤษฎี: *</label>
+                      <select id="w_tch_t_${c.code}_${pairIdx}" class="w-full bg-white border border-slate-300 rounded px-2 py-1.5 text-xs font-semibold text-slate-900">
+                        ${teachers.map(t => `<option value="${t.id}">${t.name}</option>`).join('')}
+                      </select>
+                    </div>
+                    <div>
+                      <label class="block text-[11px] font-bold text-slate-700 mb-0.5">ห้องเรียนทฤษฎี / บรรยาย:</label>
+                      <select id="w_rm_t_${c.code}_${pairIdx}" class="w-full bg-white border border-slate-300 rounded px-2 py-1.5 text-xs text-slate-800">
+                        <option value="">🤖 อัตโนมัติ: ระบบจัดหาห้องบรรยายตามความจุ</option>
+                        ${rooms.map(r => `<option value="${r.id}">[${r.id}] ${r.name}</option>`).join('')}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              ` : ''}
+
+              <!-- Practice Config (If course has practice) -->
+              ${!isPureTheory ? `
+                <div class="bg-emerald-50/60 border border-emerald-200 rounded-lg p-3 space-y-2.5">
+                  <div class="font-bold text-emerald-950 text-xs flex items-center justify-between">
+                    <span>⚙️ ภาคปฏิบัติ (${c.practice_hours} คาบ)</span>
+                    <span class="text-[10px] bg-emerald-200 text-emerald-900 px-1.5 py-0.5 rounded font-bold">ปฏิบัติแยกกลุ่ม</span>
+                  </div>
+                  
+                  <!-- Group 1 Practice -->
+                  <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+                    <div>
+                      <label class="block text-[11px] font-bold text-slate-700 mb-0.5">ครูปฏิบัติ (${g1.name}): *</label>
+                      <select id="w_tch_p1_${c.code}_${pairIdx}" class="w-full bg-white border border-slate-300 rounded px-2 py-1.5 text-xs font-semibold text-slate-900">
+                        ${teachers.map(t => `<option value="${t.id}">${t.name}</option>`).join('')}
+                      </select>
+                    </div>
+                    <div>
+                      <label class="block text-[11px] font-bold text-slate-700 mb-0.5">ห้องปฏิบัติการ (${g1.name}):</label>
+                      <select id="w_rm_p1_${c.code}_${pairIdx}" class="w-full bg-white border border-slate-300 rounded px-2 py-1.5 text-xs text-slate-800">
+                        <option value="">🤖 อัตโนมัติ: ระบบจัดห้องปฏิบัติการ</option>
+                        ${rooms.map(r => `<option value="${r.id}">[${r.id}] ${r.name}</option>`).join('')}
+                      </select>
+                    </div>
+                  </div>
+
+                  <!-- Group 2 Practice (if any) -->
+                  ${g2 ? `
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-2 border-t border-emerald-200/60">
+                      <div>
+                        <label class="block text-[11px] font-bold text-slate-700 mb-0.5">ครูปฏิบัติ (${g2.name}): *</label>
+                        <select id="w_tch_p2_${c.code}_${pairIdx}" class="w-full bg-white border border-slate-300 rounded px-2 py-1.5 text-xs font-semibold text-slate-900">
+                          ${teachers.map((t, tidx) => `<option value="${t.id}" ${tidx === 1 ? 'selected' : ''}>${t.name}</option>`).join('')}
+                        </select>
+                      </div>
+                      <div>
+                        <label class="block text-[11px] font-bold text-slate-700 mb-0.5">ห้องปฏิบัติการ (${g2.name}):</label>
+                        <select id="w_rm_p2_${c.code}_${pairIdx}" class="w-full bg-white border border-slate-300 rounded px-2 py-1.5 text-xs text-slate-800">
+                          <option value="">🤖 อัตโนมัติ: ระบบจัดห้องปฏิบัติการ</option>
+                          ${rooms.map(r => `<option value="${r.id}">[${r.id}] ${r.name}</option>`).join('')}
+                        </select>
+                      </div>
+                    </div>
+                  ` : ''}
+
+                  ${g2 ? `
+                    <label class="flex items-center gap-2 pt-1 text-[11px] text-amber-900 font-semibold cursor-pointer select-none">
+                      <input type="checkbox" id="w_sync_${c.code}_${pairIdx}" checked class="w-3.5 h-3.5 text-indigo-600 rounded">
+                      <span>จัดชั่วโมงปฏิบัติของทั้ง 2 กลุ่มให้ตรงกันในเวลาเดียวกัน (คู่ขนาน 2 ห้องฝึก)</span>
+                    </label>
+                  ` : ''}
+
+                </div>
+              ` : ''}
+
+            </div>
+          `;
+        }
+
+        return `
+          <div class="bg-slate-50/80 border border-slate-200 rounded-xl p-4 space-y-3 shadow-2xs">
+            <div class="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-slate-200">
+              <div class="flex items-center gap-2">
+                <span class="font-mono font-bold text-indigo-900 text-xs px-2 py-0.5 bg-indigo-100 rounded">${c.code}</span>
+                <span class="font-bold text-slate-900 text-sm font-display">${c.name}</span>
+              </div>
+              <div class="flex items-center gap-1.5">
+                <span class="px-2 py-0.5 rounded bg-slate-200 text-slate-700 font-bold text-[11px]">ท=${c.theory_hours}, ป=${c.practice_hours}, น=${c.credits}</span>
+                <span class="px-2 py-0.5 rounded bg-indigo-600 text-white font-bold text-[11px]">รวม ${c.total_periods} คาบ</span>
+              </div>
+            </div>
+
+            <!-- Pairings Cards -->
+            <div class="space-y-3">
+              ${groupPairingsHtml}
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      if (window.lucide) lucide.createIcons();
+    }
+
+    function validateWizardStep4() {
+      return true;
+    }
+
+    // Step 5: สรุปและบันทึก
+    function renderWizardStep5() {
+      const tbody = document.getElementById('wizardSummaryTbody');
+      const statsEl = document.getElementById('wizardFinalStats');
+      if (!tbody || !wizardSelectedSemester) return;
+
+      const courses = (wizardSelectedSemester.courses || []).filter(c => wizardSelectedCourses.has(c.code));
+      const allGroups = (fullDataManagerData?.groups || []).concat(wizardCustomGroups);
+      const selectedGroups = allGroups.filter(g => wizardSelectedGroupIds.has(g.id));
+      const teachers = fullDataManagerData?.teachers || [];
+      const rooms = fullDataManagerData?.rooms || [];
+
+      const tchMap = Object.fromEntries(teachers.map(t => [t.id, t.name]));
+      const rmMap = Object.fromEntries(rooms.map(r => [r.id, r.name]));
+
+      let summaryRows = [];
+      let totalAssignmentsCount = 0;
+
+      courses.forEach(c => {
+        const isPureTheory = (c.theory_hours > 0 && c.practice_hours === 0);
+        const isPurePractice = (c.theory_hours === 0 && c.practice_hours > 0);
+
+        for (let i = 0; i < selectedGroups.length; i += 2) {
+          const g1 = selectedGroups[i];
+          const g2 = (i + 1 < selectedGroups.length) ? selectedGroups[i + 1] : null;
+          const pairIdx = Math.floor(i / 2);
+
+          const modeSelect = document.getElementById(`w_mode_${c.code}_${pairIdx}`);
+          const isMerged = (!modeSelect || modeSelect.value === 'MERGED') && g2 !== null;
+
+          // 1. Theory
+          if (!isPurePractice) {
+            const tchTId = document.getElementById(`w_tch_t_${c.code}_${pairIdx}`)?.value || teachers[0]?.id;
+            const rmTId = document.getElementById(`w_rm_t_${c.code}_${pairIdx}`)?.value || '';
+            const grpLabel = isMerged ? `${g1.name} + ${g2.name} (เรียนรวม)` : `${g1.name}`;
+            
+            summaryRows.push({
+              code: c.code,
+              name: c.name,
+              comp: 'ทฤษฎี',
+              group: grpLabel,
+              teacher: tchMap[tchTId] || tchTId,
+              room: rmMap[rmTId] || '(อัตโนมัติ)',
+              periods: c.theory_hours
+            });
+            totalAssignmentsCount++;
+
+            if (!isMerged && g2) {
+              summaryRows.push({
+                code: c.code,
+                name: c.name,
+                comp: 'ทฤษฎี',
+                group: g2.name,
+                teacher: tchMap[tchTId] || tchTId,
+                room: rmMap[rmTId] || '(อัตโนมัติ)',
+                periods: c.theory_hours
+              });
+              totalAssignmentsCount++;
+            }
+          }
+
+          // 2. Practice
+          if (!isPureTheory) {
+            const tchP1Id = document.getElementById(`w_tch_p1_${c.code}_${pairIdx}`)?.value || teachers[0]?.id;
+            const rmP1Id = document.getElementById(`w_rm_p1_${c.code}_${pairIdx}`)?.value || '';
+            summaryRows.push({
+              code: c.code,
+              name: c.name,
+              comp: 'ปฏิบัติ',
+              group: g1.name,
+              teacher: tchMap[tchP1Id] || tchP1Id,
+              room: rmMap[rmP1Id] || '(อัตโนมัติ)',
+              periods: c.practice_hours
+            });
+            totalAssignmentsCount++;
+
+            if (g2) {
+              const tchP2Id = document.getElementById(`w_tch_p2_${c.code}_${pairIdx}`)?.value || teachers[0]?.id;
+              const rmP2Id = document.getElementById(`w_rm_p2_${c.code}_${pairIdx}`)?.value || '';
+              summaryRows.push({
+                code: c.code,
+                name: c.name,
+                comp: 'ปฏิบัติ',
+                group: g2.name,
+                teacher: tchMap[tchP2Id] || tchP2Id,
+                room: rmMap[rmP2Id] || '(อัตโนมัติ)',
+                periods: c.practice_hours
+              });
+              totalAssignmentsCount++;
+            }
+          }
+        }
+      });
+
+      tbody.innerHTML = summaryRows.map(r => `
+        <tr class="hover:bg-slate-50 transition">
+          <td class="py-2 px-3 font-mono font-bold text-slate-800">${r.code}</td>
+          <td class="py-2 px-3 font-semibold text-slate-900">${r.name}</td>
+          <td class="py-2 px-3"><span class="px-2 py-0.5 rounded text-[10px] font-bold ${r.comp === 'ทฤษฎี' ? 'bg-blue-100 text-blue-800' : 'bg-emerald-100 text-emerald-800'}">${r.comp}</span></td>
+          <td class="py-2 px-3 font-bold text-indigo-950">${r.group}</td>
+          <td class="py-2 px-3 text-slate-800">${r.teacher}</td>
+          <td class="py-2 px-3 text-slate-600">${r.room}</td>
+          <td class="py-2 px-3 text-center font-bold text-slate-800">${r.periods}</td>
+        </tr>
+      `).join('');
+
+      if (statsEl) {
+        statsEl.innerHTML = `
+          <span>รวม <strong>${courses.length}</strong> รายวิชา (${selectedGroups.length} กลุ่มเรียน)</span>
+          <span>สร้างแผนการสอนทั้งหมด <strong>${totalAssignmentsCount}</strong> รายการ</span>
+        `;
+      }
+    }
+
+    async function submitWizardBatchApply(andSolve) {
+      const courses = (wizardSelectedSemester.courses || []).filter(c => wizardSelectedCourses.has(c.code));
+      const allGroups = (fullDataManagerData?.groups || []).concat(wizardCustomGroups);
+      const selectedGroups = allGroups.filter(g => wizardSelectedGroupIds.has(g.id));
+      const teachers = fullDataManagerData?.teachers || [];
+
+      // Build payload
+      const coursesToApply = [];
+
+      courses.forEach(c => {
+        const isPureTheory = (c.theory_hours > 0 && c.practice_hours === 0);
+        const isPurePractice = (c.theory_hours === 0 && c.practice_hours > 0);
+
+        const groupPlans = [];
+        for (let i = 0; i < selectedGroups.length; i += 2) {
+          const g1 = selectedGroups[i];
+          const g2 = (i + 1 < selectedGroups.length) ? selectedGroups[i + 1] : null;
+          const pairIdx = Math.floor(i / 2);
+
+          const modeSelect = document.getElementById(`w_mode_${c.code}_${pairIdx}`);
+          const isMerged = (!modeSelect || modeSelect.value === 'MERGED') && g2 !== null;
+
+          const tchTId = document.getElementById(`w_tch_t_${c.code}_${pairIdx}`)?.value || teachers[0]?.id;
+          const rmTId = document.getElementById(`w_rm_t_${c.code}_${pairIdx}`)?.value || null;
+
+          const tchP1Id = document.getElementById(`w_tch_p1_${c.code}_${pairIdx}`)?.value || teachers[0]?.id;
+          const rmP1Id = document.getElementById(`w_rm_p1_${c.code}_${pairIdx}`)?.value || null;
+
+          const tchP2Id = g2 ? (document.getElementById(`w_tch_p2_${c.code}_${pairIdx}`)?.value || teachers[0]?.id) : null;
+          const rmP2Id = g2 ? (document.getElementById(`w_rm_p2_${c.code}_${pairIdx}`)?.value || null) : null;
+          const syncP = document.getElementById(`w_sync_${c.code}_${pairIdx}`) ? document.getElementById(`w_sync_${c.code}_${pairIdx}`).checked : true;
+
+          if (isMerged && g2) {
+            groupPlans.push({
+              primary_group_id: g1.id,
+              secondary_group_id: g2.id,
+              primary_teacher_id: isPurePractice ? tchP1Id : tchTId,
+              secondary_teacher_id: isPurePractice ? tchP2Id : tchP2Id,
+              theory_room_id: rmTId,
+              practice_room_1_id: rmP1Id,
+              practice_room_2_id: rmP2Id,
+              sync_parallel: syncP
+            });
+          } else {
+            // Group 1 Solo
+            groupPlans.push({
+              primary_group_id: g1.id,
+              secondary_group_id: null,
+              primary_teacher_id: isPurePractice ? tchP1Id : tchTId,
+              secondary_teacher_id: null,
+              theory_room_id: rmTId,
+              practice_room_1_id: rmP1Id,
+              practice_room_2_id: null,
+              sync_parallel: false
+            });
+            // Group 2 Solo (if exists)
+            if (g2) {
+              groupPlans.push({
+                primary_group_id: g2.id,
+                secondary_group_id: null,
+                primary_teacher_id: isPurePractice ? tchP2Id : tchTId,
+                secondary_teacher_id: null,
+                theory_room_id: rmTId,
+                practice_room_1_id: rmP2Id,
+                practice_room_2_id: null,
+                sync_parallel: false
+              });
+            }
+          }
+        }
+
+        coursesToApply.push({
+          course_code: c.code,
+          course_name: c.name,
+          theory_periods: c.theory_hours,
+          practice_periods: c.practice_hours,
+          course_type: c.course_type,
+          teaching_mode: groupPlans.some(p => p.secondary_group_id) ? "CO_TEACHING" : "SINGLE",
+          group_plans: groupPlans
+        });
+      });
+
+      const payload = {
+        semester_key: wizardSelectedSemester.semester_key,
+        groups: selectedGroups,
+        courses_to_apply: coursesToApply
+      };
+
+      const activeBtn = andSolve ? document.getElementById('btnWizardSaveSolve') : document.getElementById('btnWizardSaveOnly');
+      const origHtml = activeBtn ? activeBtn.innerHTML : '';
+      if (activeBtn) {
+        activeBtn.disabled = true;
+        activeBtn.innerHTML = `<span class="animate-spin mr-1">⏳</span> กำลังบันทึก...`;
+      }
+
+      try {
+        const res = await fetch('/api/curriculum/batch-apply', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const result = await res.json();
+        if (!res.ok || !result.is_success) {
+          throw new Error(result.detail || "บันทึกไม่สำเร็จ");
+        }
+
+        closeCurriculumWizardModal();
+        if (typeof loadDataManagerData === 'function') {
+          await loadDataManagerData();
+        }
+
+        if (andSolve) {
+          showToast(`🌟 บันทึกแผนการสอน ${result.data.created_assignments_count} รายการ เรียบร้อยแล้ว กำลังจัดตาราง...`, 'info', 3500);
+          await saveAndSolveCurrent();
+        } else {
+          showToast(`💾 บันทึกแผนการสอน ${result.data.created_assignments_count} รายการ สำเร็จเรียบร้อย!`, 'success', 4500);
+        }
+      } catch (err) {
+        alert(`❌ เกิดข้อผิดพลาด: ${err.message}`);
+      } finally {
+        if (activeBtn) {
+          activeBtn.disabled = false;
+          activeBtn.innerHTML = origHtml;
+        }
+        if (window.lucide) lucide.createIcons();
       }
     }
 
@@ -4859,6 +5714,26 @@
             </div>
           </div>
           
+          <!-- Curriculum Wizard Launcher Banner -->
+          <div class="bg-gradient-to-r from-amber-500/10 via-orange-500/10 to-indigo-500/10 border border-amber-300/80 rounded-xl p-3.5 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-2xs">
+            <div class="flex items-center space-x-3">
+              <span class="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 text-white flex items-center justify-center shadow-xs shrink-0 font-bold">
+                <i data-lucide="compass" class="w-5 h-5"></i>
+              </span>
+              <div>
+                <div class="font-bold text-slate-900 text-xs font-display flex items-center gap-1.5">
+                  <span>ตัวช่วยจัดแผนการสอนจากแผนการเรียน (Step-by-Step Curriculum Wizard)</span>
+                  <span class="px-1.5 py-0.2 bg-amber-200 text-amber-900 text-[10px] font-bold rounded">แนะนำ</span>
+                </div>
+                <div class="text-[11px] text-slate-600 mt-0.5">เลือกชั้นปี/ภาคเรียน ➔ ติ๊กเลือกวิชา ➔ กำหนดกลุ่มเรียน (ชอ.1/1, 1/2, 1/3) ➔ มอบหมายครู/ห้องเรียน และบันทึกทีเดียว</div>
+              </div>
+            </div>
+            <button type="button" onclick="closeDataManagerModal(); openCurriculumWizardModal();" class="px-4 py-2 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white font-bold text-xs rounded-lg shadow-xs transition active:scale-95 font-display flex items-center space-x-1.5 shrink-0 cursor-pointer">
+              <i data-lucide="sparkles" class="w-4 h-4 text-amber-200"></i>
+              <span>เปิดตัวช่วยจัดแผนการสอน</span>
+            </button>
+          </div>
+          
           <!-- Quick Batch Tool Bar -->
           <div class="bg-indigo-50/70 border border-indigo-200 rounded-lg p-3 flex flex-wrap items-center justify-between gap-3 text-xs">
             <div class="flex items-center space-x-2">
@@ -5343,6 +6218,335 @@
           </button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- Curriculum Timetable Wizard Modal Dialog (5-Step) -->
+  <div id="curriculumWizardModal" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-4xl w-full border border-slate-300 overflow-hidden transform transition-all animate-in fade-in zoom-in-95 flex flex-col max-h-[92vh]">
+      
+      <!-- Modal Header -->
+      <div class="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white px-6 py-4 flex items-center justify-between shrink-0 border-b border-indigo-900">
+        <div class="flex items-center space-x-3">
+          <span class="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center font-bold text-white shadow-md shrink-0">
+            <i data-lucide="compass" class="w-6 h-6"></i>
+          </span>
+          <div>
+            <h3 class="text-base font-bold font-display text-white flex items-center gap-2">
+              <span>ตัวช่วยจัดแผนการสอนจากแผนการเรียน</span>
+              <span class="px-2 py-0.5 bg-amber-400/20 text-amber-300 border border-amber-400/30 text-[10px] font-bold rounded-full">Curriculum Wizard</span>
+            </h3>
+            <p class="text-xs text-indigo-200">สร้างและผูกแผนการสอนตามหลักสูตรอาชีวะแบบเป็นขั้นตอน 5 สเต็ป</p>
+          </div>
+        </div>
+        <button type="button" onclick="closeCurriculumWizardModal()" class="text-slate-400 hover:text-white p-1 rounded-lg transition cursor-pointer">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <!-- Step Progress Indicator -->
+      <div class="bg-slate-50 border-b border-slate-200 px-4 sm:px-8 py-3 shrink-0">
+        <div class="flex items-center justify-between max-w-2xl mx-auto text-xs font-display">
+          
+          <!-- Step 1 Indicator -->
+          <div class="flex flex-col items-center gap-1 cursor-pointer" onclick="goToWizardStep(1)">
+            <div id="stepDot1" class="w-7 h-7 rounded-full bg-indigo-600 text-white font-bold flex items-center justify-center text-xs shadow-xs transition">1</div>
+            <span id="stepLabel1" class="font-bold text-indigo-900 text-[11px]">หลักสูตร & ชั้นปี</span>
+          </div>
+          <div id="stepLine1" class="flex-1 h-0.5 bg-slate-200 mx-2"></div>
+
+          <!-- Step 2 Indicator -->
+          <div class="flex flex-col items-center gap-1 cursor-pointer" onclick="goToWizardStep(2)">
+            <div id="stepDot2" class="w-7 h-7 rounded-full bg-slate-200 text-slate-600 font-bold flex items-center justify-center text-xs transition">2</div>
+            <span id="stepLabel2" class="font-medium text-slate-500 text-[11px]">เช็คลิสต์วิชา</span>
+          </div>
+          <div id="stepLine2" class="flex-1 h-0.5 bg-slate-200 mx-2"></div>
+
+          <!-- Step 3 Indicator -->
+          <div class="flex flex-col items-center gap-1 cursor-pointer" onclick="goToWizardStep(3)">
+            <div id="stepDot3" class="w-7 h-7 rounded-full bg-slate-200 text-slate-600 font-bold flex items-center justify-center text-xs transition">3</div>
+            <span id="stepLabel3" class="font-medium text-slate-500 text-[11px]">กลุ่มผู้เรียน</span>
+          </div>
+          <div id="stepLine3" class="flex-1 h-0.5 bg-slate-200 mx-2"></div>
+
+          <!-- Step 4 Indicator -->
+          <div class="flex flex-col items-center gap-1 cursor-pointer" onclick="goToWizardStep(4)">
+            <div id="stepDot4" class="w-7 h-7 rounded-full bg-slate-200 text-slate-600 font-bold flex items-center justify-center text-xs transition">4</div>
+            <span id="stepLabel4" class="font-medium text-slate-500 text-[11px]">ครู & ห้องเรียน</span>
+          </div>
+          <div id="stepLine4" class="flex-1 h-0.5 bg-slate-200 mx-2"></div>
+
+          <!-- Step 5 Indicator -->
+          <div class="flex flex-col items-center gap-1 cursor-pointer" onclick="goToWizardStep(5)">
+            <div id="stepDot5" class="w-7 h-7 rounded-full bg-slate-200 text-slate-600 font-bold flex items-center justify-center text-xs transition">5</div>
+            <span id="stepLabel5" class="font-medium text-slate-500 text-[11px]">สรุป & บันทึก</span>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Modal Body (Steps Container) -->
+      <div class="p-4 sm:p-6 overflow-y-auto flex-1 text-xs space-y-4">
+        
+        <!-- STEP 1: Select Plan & Level / Semester -->
+        <div id="wizardStepView1" class="space-y-4">
+          <!-- Step 1 Description -->
+          <div class="bg-indigo-50/80 border border-indigo-200 rounded-xl p-3.5 flex items-start gap-3">
+            <span class="p-2 bg-indigo-600 text-white rounded-lg shrink-0 mt-0.5"><i data-lucide="folder-kanban" class="w-4 h-4"></i></span>
+            <div>
+              <div class="font-bold text-indigo-950 font-display text-sm">สเต็ป 1: เลือกแผนการเรียนตลอดหลักสูตรและภาคเรียนที่ต้องการเปิดสอน</div>
+              <p class="text-indigo-800 text-xs mt-0.5">เลือกหลักสูตรที่มีในระบบ หรืออัปโหลดไฟล์ Excel แผนการเรียนตลอดหลักสูตร (.xlsx) เข้าสู่คลัง</p>
+            </div>
+          </div>
+
+          <!-- Plan Selection & Upload Box -->
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <!-- Existing Plan in Repository -->
+            <div class="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
+              <div class="font-bold text-slate-900 font-display flex items-center gap-1.5 text-xs text-indigo-900">
+                <i data-lucide="book-marked" class="w-4 h-4 text-indigo-600"></i>
+                <span>เลือกจากคลังแผนการเรียนในระบบ</span>
+              </div>
+              <div>
+                <label class="block font-bold text-slate-700 mb-1">แผนการเรียน:</label>
+                <select id="wizardPlanSelect" onchange="onWizardPlanSelectChange()" class="w-full bg-white border border-slate-300 rounded px-2.5 py-2 text-xs font-semibold text-slate-900 focus:ring-2 focus:ring-indigo-500">
+                  <option value="">-- ยังไม่มีแผนการเรียนในคลัง (โปรดอัปโหลดไฟล์ด้านขวา) --</option>
+                </select>
+              </div>
+              <div id="wizardPlanInfoBox" class="hidden p-2.5 bg-white border border-indigo-100 rounded-lg text-slate-700 text-[11px] space-y-1">
+                <!-- Populated by JS -->
+              </div>
+            </div>
+
+            <!-- Upload New Plan File -->
+            <div class="bg-amber-50/60 border border-amber-200 rounded-xl p-4 space-y-3 flex flex-col justify-between">
+              <div>
+                <div class="font-bold text-amber-950 font-display flex items-center gap-1.5 text-xs">
+                  <i data-lucide="upload-cloud" class="w-4 h-4 text-amber-600"></i>
+                  <span>อัปโหลดไฟล์แผนการเรียนใหม่ (.xlsx)</span>
+                </div>
+                <p class="text-[11px] text-amber-800 mt-1">ไฟล์ Excel ตารางแผนการเรียนตลอดหลักสูตร (มีชีต 1.2569, 2.2569, 2.2570 ฯลฯ)</p>
+              </div>
+              <div>
+                <input type="file" id="wizardFileInput" accept=".xlsx,.xls" class="hidden" onchange="onWizardFileUpload(event)">
+                <button type="button" onclick="document.getElementById('wizardFileInput').click()" class="w-full py-2 px-3 bg-white hover:bg-amber-100/70 border border-amber-300 rounded-lg font-bold text-amber-900 text-xs transition flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs">
+                  <i data-lucide="file-spreadsheet" class="w-4 h-4 text-emerald-600"></i>
+                  <span id="wizardUploadBtnText">เลือกไฟล์ Excel ตลอดหลักสูตร</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Level and Semester Selector -->
+          <div class="bg-white border border-slate-200 rounded-xl p-4 space-y-3 shadow-2xs">
+            <div class="font-bold text-slate-900 font-display flex items-center gap-1.5 text-xs text-indigo-900">
+              <i data-lucide="calendar" class="w-4 h-4 text-indigo-600"></i>
+              <span>เลือกระดับชั้นและภาคเรียน/ปีการศึกษา</span>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label class="block font-bold text-slate-700 mb-1">ระดับชั้น:</label>
+                <select id="wizardLevelSelect" onchange="onWizardLevelChange()" class="w-full bg-slate-50 border border-slate-300 rounded px-2.5 py-2 text-xs font-semibold text-slate-900">
+                  <option value="ALL">-- ทุกระดับชั้น (แสดงทุกภาคเรียน) --</option>
+                  <option value="ปวช.1">ปวช.1 (ปี 1)</option>
+                  <option value="ปวช.2">ปวช.2 (ปี 2)</option>
+                  <option value="ปวช.3">ปวช.3 (ปี 3)</option>
+                  <option value="ปวส.1">ปวส.1</option>
+                  <option value="ปวส.2">ปวส.2</option>
+                </select>
+              </div>
+              <div>
+                <label class="block font-bold text-slate-700 mb-1">ภาคเรียน/ปีการศึกษาที่จะเปิดสอน: *</label>
+                <select id="wizardSemesterSelect" onchange="onWizardSemesterChange()" class="w-full bg-slate-50 border border-slate-300 rounded px-2.5 py-2 text-xs font-bold text-indigo-900 focus:ring-2 focus:ring-indigo-500">
+                  <option value="">-- โปรดเลือกแผนการเรียนก่อน --</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- STEP 2: Select Courses Checklist -->
+        <div id="wizardStepView2" class="hidden space-y-3">
+          <div class="bg-indigo-50/80 border border-indigo-200 rounded-xl p-3.5 flex items-center justify-between gap-3">
+            <div class="flex items-center gap-2.5">
+              <span class="p-2 bg-indigo-600 text-white rounded-lg shrink-0"><i data-lucide="check-square" class="w-4 h-4"></i></span>
+              <div>
+                <div class="font-bold text-indigo-950 font-display text-sm">สเต็ป 2: เลือกรายวิชาจากเช็คลิสต์</div>
+                <p class="text-indigo-800 text-xs">ติ๊กเครื่องหมายถูกเลือกวิชาที่เปิดสอนในภาคเรียนนี้</p>
+              </div>
+            </div>
+            <div class="flex gap-2">
+              <button type="button" onclick="setAllWizardCourses(true)" class="px-2.5 py-1 bg-white hover:bg-indigo-50 border border-indigo-300 text-indigo-900 rounded font-bold text-xs transition">เลือกทั้งหมด</button>
+              <button type="button" onclick="setAllWizardCourses(false)" class="px-2.5 py-1 bg-white hover:bg-slate-100 border border-slate-300 text-slate-600 rounded font-bold text-xs transition">ยกเลิกทั้งหมด</button>
+            </div>
+          </div>
+
+          <!-- Courses Table Box -->
+          <div class="border border-slate-200 rounded-xl overflow-hidden shadow-2xs">
+            <div class="max-h-80 overflow-y-auto">
+              <table class="w-full text-left text-xs">
+                <thead class="bg-slate-100 border-b border-slate-200 text-slate-700 font-bold sticky top-0 z-10 font-display">
+                  <tr>
+                    <th class="py-2.5 px-3 w-10 text-center">
+                      <input type="checkbox" id="wizardCheckAll" onchange="setAllWizardCourses(this.checked)" class="w-4 h-4 text-indigo-600 rounded">
+                    </th>
+                    <th class="py-2.5 px-3">รหัสวิชา</th>
+                    <th class="py-2.5 px-3">ชื่อรายวิชา</th>
+                    <th class="py-2.5 px-3 text-center">ท-ป-น</th>
+                    <th class="py-2.5 px-3 text-center">ประเภท</th>
+                    <th class="py-2.5 px-3 text-center">จำนวนคาบ</th>
+                  </tr>
+                </thead>
+                <tbody id="wizardCoursesTbody" class="divide-y divide-slate-100">
+                  <!-- Populated by JS -->
+                </tbody>
+              </table>
+            </div>
+            <div class="bg-slate-50 px-4 py-2 border-t border-slate-200 flex items-center justify-between text-slate-600 font-medium text-[11px]">
+              <span id="wizardSelectedCoursesCount">เลือก 0 จาก 0 วิชา</span>
+              <span id="wizardSelectedPeriodsSum">รวม 0 คาบ/สัปดาห์</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- STEP 3: Select Student Groups -->
+        <div id="wizardStepView3" class="hidden space-y-3">
+          <div class="bg-indigo-50/80 border border-indigo-200 rounded-xl p-3.5 flex items-center justify-between gap-3">
+            <div class="flex items-center gap-2.5">
+              <span class="p-2 bg-indigo-600 text-white rounded-lg shrink-0"><i data-lucide="users" class="w-4 h-4"></i></span>
+              <div>
+                <div class="font-bold text-indigo-950 font-display text-sm">สเต็ป 3: เลือกกลุ่มผู้เรียนที่จะให้เรียนวิชาชุดนี้</div>
+                <p class="text-indigo-800 text-xs">เลือกกลุ่มเรียนที่มี หรือเพิ่มกลุ่มเรียนใหม่ เช่น ชอ.1/1, ชอ.1/2, ชอ.1/3</p>
+              </div>
+            </div>
+            <div class="flex gap-2">
+              <button type="button" onclick="toggleWizardNewGroupForm()" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-bold text-xs shadow-xs transition flex items-center gap-1 cursor-pointer">
+                <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+                <span>+ เพิ่มกลุ่มเรียนใหม่</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Inline Add New Group Form -->
+          <div id="wizardNewGroupForm" class="hidden bg-emerald-50 border border-emerald-300 rounded-xl p-3.5 space-y-2">
+            <div class="font-bold text-emerald-950 text-xs font-display flex items-center gap-1.5">
+              <i data-lucide="user-plus" class="w-4 h-4 text-emerald-600"></i>
+              <span>เพิ่มกลุ่มผู้เรียนใหม่เข้าสู่ระบบ</span>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              <input type="text" id="wizardNewGroupName" placeholder="ชื่อกลุ่ม เช่น ชอ.1/1 หรือ ชอ.1/2" class="bg-white border border-slate-300 rounded px-2.5 py-1.5 text-xs font-bold text-slate-900 focus:ring-2 focus:ring-emerald-500">
+              <select id="wizardNewGroupLevel" class="bg-white border border-slate-300 rounded px-2.5 py-1.5 text-xs font-semibold text-slate-800">
+                <option value="VOC_CERT">ระดับ ปวช.</option>
+                <option value="HIGH_VOC_CERT">ระดับ ปวส.</option>
+              </select>
+              <button type="button" onclick="submitWizardNewGroup()" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded font-bold text-xs transition cursor-pointer">
+                บันทึกและเพิ่มลงเช็คลิสต์
+              </button>
+            </div>
+          </div>
+
+          <!-- Groups Checklist Box -->
+          <div class="border border-slate-200 rounded-xl p-4 bg-slate-50/50 space-y-2">
+            <div class="text-xs font-bold text-slate-700 mb-2">กลุ่มเรียนในระบบ (ติ๊กเลือกกลุ่มที่จะเปิดสอนวิชาชุดนี้):</div>
+            <div id="wizardGroupsList" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 max-h-60 overflow-y-auto pr-1">
+              <!-- Populated by JS -->
+            </div>
+            <div class="pt-2 border-t border-slate-200 text-[11px] text-slate-500 font-semibold" id="wizardSelectedGroupsSummary">
+              เลือกแล้ว 0 กลุ่มเรียน
+            </div>
+          </div>
+        </div>
+
+        <!-- STEP 4: Assign Teachers, Teaching Mode, and Rooms -->
+        <div id="wizardStepView4" class="hidden space-y-4">
+          <div class="bg-indigo-50/80 border border-indigo-200 rounded-xl p-3.5 flex items-center justify-between gap-3">
+            <div class="flex items-center gap-2.5">
+              <span class="p-2 bg-indigo-600 text-white rounded-lg shrink-0"><i data-lucide="user-check" class="w-4 h-4"></i></span>
+              <div>
+                <div class="font-bold text-indigo-950 font-display text-sm">สเต็ป 4: มอบหมายครูผู้สอน รูปแบบการเรียน และห้องเรียน</div>
+                <p class="text-indigo-800 text-xs">กำหนดครูประจำกลุ่ม จัดทฤษฎีเรียนรวม/เดี่ยว และระบุห้องปฏิบัติการ</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Course Cards Configuration Container -->
+          <div id="wizardCourseCardsContainer" class="space-y-4">
+            <!-- Dynamic Course Cards Generated by JS -->
+          </div>
+        </div>
+
+        <!-- STEP 5: Summary & Confirm -->
+        <div id="wizardStepView5" class="hidden space-y-4">
+          <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-3.5 flex items-center justify-between gap-3">
+            <div class="flex items-center gap-2.5">
+              <span class="p-2 bg-emerald-600 text-white rounded-lg shrink-0"><i data-lucide="check-circle-2" class="w-4 h-4"></i></span>
+              <div>
+                <div class="font-bold text-emerald-950 font-display text-sm">สเต็ป 5: ตรวจสอบและบันทึกแผนการสอน</div>
+                <p class="text-emerald-800 text-xs">ตรวจสอบความถูกต้องก่อนบันทึกลงระบบ</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Summary Table -->
+          <div class="border border-slate-200 rounded-xl overflow-hidden shadow-2xs">
+            <div class="max-h-72 overflow-y-auto">
+              <table class="w-full text-left text-xs">
+                <thead class="bg-slate-100 border-b border-slate-200 text-slate-700 font-bold sticky top-0 z-10 font-display">
+                  <tr>
+                    <th class="py-2.5 px-3">รหัสวิชา</th>
+                    <th class="py-2.5 px-3">ชื่อรายวิชา</th>
+                    <th class="py-2.5 px-3">ส่วนประกอบ</th>
+                    <th class="py-2.5 px-3">กลุ่มเรียน</th>
+                    <th class="py-2.5 px-3">ครูผู้สอน</th>
+                    <th class="py-2.5 px-3">ห้องเรียน</th>
+                    <th class="py-2.5 px-3 text-center">คาบ</th>
+                  </tr>
+                </thead>
+                <tbody id="wizardSummaryTbody" class="divide-y divide-slate-100">
+                  <!-- Populated by JS -->
+                </tbody>
+              </table>
+            </div>
+            <div class="bg-slate-50 px-4 py-2.5 border-t border-slate-200 flex items-center justify-between text-slate-700 font-bold text-xs" id="wizardFinalStats">
+              <span>รวม 0 รายวิชา</span>
+              <span>รวม 0 แผนการสอน</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Modal Footer Navigation -->
+      <div class="bg-slate-100 px-6 py-3.5 border-t border-slate-300 flex items-center justify-between shrink-0">
+        <button type="button" onclick="closeCurriculumWizardModal()" class="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-lg text-xs font-display transition cursor-pointer">
+          ✕ ยกเลิก
+        </button>
+
+        <div class="flex items-center space-x-2.5">
+          <button type="button" id="btnWizardPrev" onclick="wizardPrevStep()" class="hidden px-4 py-2 bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 font-bold rounded-lg text-xs font-display transition shadow-2xs flex items-center gap-1 cursor-pointer">
+            <i data-lucide="chevron-left" class="w-4 h-4"></i>
+            <span>ย้อนกลับ</span>
+          </button>
+          
+          <button type="button" id="btnWizardNext" onclick="wizardNextStep()" class="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg text-xs font-display transition shadow-xs flex items-center gap-1 cursor-pointer">
+            <span>ถัดไป</span>
+            <i data-lucide="chevron-right" class="w-4 h-4"></i>
+          </button>
+
+          <!-- Action Buttons in Step 5 -->
+          <button type="button" id="btnWizardSaveOnly" onclick="submitWizardBatchApply(false)" class="hidden px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg text-xs font-display transition shadow-xs flex items-center gap-1.5 cursor-pointer" title="บันทึกแผนการสอนลงระบบ (ยังไม่สร้างตาราง)">
+            <i data-lucide="save" class="w-4 h-4"></i>
+            <span>💾 บันทึกแผนการสอน</span>
+          </button>
+
+          <button type="button" id="btnWizardSaveSolve" onclick="submitWizardBatchApply(true)" class="hidden px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-xs font-display transition shadow-xs flex items-center gap-1.5 cursor-pointer active:scale-95" title="บันทึกและให้ OR-Tools ประมวลผลสร้างตารางใหม่ทันที">
+            <i data-lucide="sparkles" class="w-4 h-4 text-amber-300"></i>
+            <span>🚀 บันทึกและสร้างตารางทันที</span>
+          </button>
+        </div>
+      </div>
+
     </div>
   </div>
 

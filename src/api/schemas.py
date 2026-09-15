@@ -104,7 +104,7 @@ class SplitTheoryPracticeRequest(BaseModel):
     theory_periods: int = 1
     practice_periods: int = 3
     primary_group_id: str
-    secondary_group_id: str
+    secondary_group_id: Optional[str] = None
     teaching_mode: str = "CO_TEACHING"  # "CO_TEACHING" (2 อาจารย์) หรือ "SINGLE" (ผู้สอนคนเดียว)
     primary_teacher_id: str
     secondary_teacher_id: Optional[str] = None

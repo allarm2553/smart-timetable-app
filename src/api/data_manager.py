@@ -449,49 +449,61 @@ class TimetableDataManager:
         elif practice_room_2_id and practice_room_2_id in rooms_dict:
             practice_room_type = rooms_dict[practice_room_2_id].get("room_type", practice_room_type)
 
-        # 1. Master Course สำหรับทฤษฎี
+        # 1. Master Course สำหรับทฤษฎี (สร้างเมื่อ theory_periods > 0)
         t_course_id = f"C_{clean_code}_THEORY"
-        if t_course_id not in self.courses:
-            self.courses[t_course_id] = {
-                "id": t_course_id,
-                "name": f"{course_name} (ทฤษฎี)",
-                "code": course_code,
-                "course_type": CourseType.THEORY.value,
-                "periods_per_session": theory_periods,
-                "sessions_per_week": 1,
-                "required_room_type": theory_room_type,
-                "allow_merge": not is_solo_mode,  # เรียนเดี่ยว = ไม่ merge
-                "base_id": None
-            }
+        if theory_periods > 0:
+            if t_course_id not in self.courses:
+                self.courses[t_course_id] = {
+                    "id": t_course_id,
+                    "name": f"{course_name} (ทฤษฎี)",
+                    "code": course_code,
+                    "course_type": CourseType.THEORY.value,
+                    "periods_per_session": theory_periods,
+                    "sessions_per_week": 1,
+                    "required_room_type": theory_room_type,
+                    "allow_merge": not is_solo_mode,  # เรียนเดี่ยว = ไม่ merge
+                    "base_id": None
+                }
+            else:
+                self.courses[t_course_id]["periods_per_session"] = theory_periods
+                self.courses[t_course_id]["required_room_type"] = theory_room_type
 
-        # 2. Master Course สำหรับปฏิบัติ
+        # 2. Master Course สำหรับปฏิบัติ (สร้างเมื่อ practice_periods > 0)
         p_course_id = f"C_{clean_code}_PRAC"
         prac_code = course_code if course_code.startswith("ป.") else f"ป. {course_code}"
-        if p_course_id not in self.courses:
-            self.courses[p_course_id] = {
-                "id": p_course_id,
-                "name": f"{course_name} (ปฏิบัติ)",
-                "code": prac_code,
-                "course_type": CourseType.PRACTICE.value,
-                "periods_per_session": practice_periods,
-                "sessions_per_week": 1,
-                "required_room_type": practice_room_type,
-                "allow_merge": False,
-                "base_id": None
-            }
+        if practice_periods > 0:
+            if p_course_id not in self.courses:
+                self.courses[p_course_id] = {
+                    "id": p_course_id,
+                    "name": f"{course_name} (ปฏิบัติ)",
+                    "code": prac_code,
+                    "course_type": CourseType.PRACTICE.value,
+                    "periods_per_session": practice_periods,
+                    "sessions_per_week": 1,
+                    "required_room_type": practice_room_type,
+                    "allow_merge": False,
+                    "base_id": None
+                }
+            else:
+                self.courses[p_course_id]["periods_per_session"] = practice_periods
+                self.courses[p_course_id]["required_room_type"] = practice_room_type
 
         # รหัส Assignments ย่อย
         clean_g1 = re.sub(r'[^a-zA-Z0-9]', '_', primary_group_id).strip('_')
         clean_g2 = re.sub(r'[^a-zA-Z0-9]', '_', secondary_group_id).strip('_') if secondary_group_id else "SOLO"
 
-        ass_theory_id = f"ASS_{clean_code}_T_{clean_g1}_{clean_g2}"
-        ass_p1_id = f"ASS_{clean_code}_P_{clean_g1}"
-        ass_p2_id = f"ASS_{clean_code}_P_{clean_g2}" if not is_solo_mode else None
+        ass_theory_id = f"ASS_{clean_code}_T_{clean_g1}_{clean_g2}" if theory_periods > 0 else None
+        ass_p1_id = f"ASS_{clean_code}_P_{clean_g1}" if practice_periods > 0 else None
+        ass_p2_id = f"ASS_{clean_code}_P_{clean_g2}" if (practice_periods > 0 and not is_solo_mode) else None
 
         # ลบ Assignment เดิมที่ซ้ำหรือต้องการแทนที่ถ้ามี
-        existing_ids = {ass_theory_id, ass_p1_id}
-        if ass_p2_id:
-            existing_ids.add(ass_p2_id)
+        existing_ids = set()
+        if ass_theory_id: existing_ids.add(ass_theory_id)
+        if ass_p1_id: existing_ids.add(ass_p1_id)
+        if ass_p2_id: existing_ids.add(ass_p2_id)
+        # ลบ pattern เก่าของวิชานี้สำหรับกลุ่มนี้ด้วย
+        existing_ids.add(f"ASS_{clean_code}_{clean_g1}")
+
         if source_assignment_id:
             src_a = self._find_assignment(source_assignment_id)
             if src_a:
@@ -500,69 +512,73 @@ class TimetableDataManager:
                 existing_ids.add(source_assignment_id)
         self.assignments = [a for a in self.assignments if a["id"] not in existing_ids]
 
-        # 3.1 แผนการสอนทฤษฎี (เรียนรวม 2 กลุ่ม หรือเดี่ยวกลุ่มเดียวถ้า is_solo_mode)
-        ass_theory = {
-            "id": ass_theory_id,
-            "course_id": t_course_id,
-            "primary_group_id": primary_group_id,
-            "secondary_group_id": secondary_group_id if not is_solo_mode else None,
-            "teacher_id": primary_teacher_id,
-            "secondary_teacher_id": None,
-            "is_rotation": False,
-            "teaching_mode": "MERGED" if not is_solo_mode else "SINGLE",
-            "is_pinned": False,
-            "fixed_day": None,
-            "fixed_start_period": None,
-            "fixed_room_id": theory_room_id or None,
-            "external_teacher_name": None,
-            "parallel_with_id": None,
-            "component_type": "THEORY",
-            "parent_assignment_id": bundle_id
-        }
+        assignments_to_add = []
 
-        # 3.2 แผนการสอนปฏิบัติ กลุ่ม 1 (ผู้สอนคืออาจารย์หลัก)
-        ass_p1 = {
-            "id": ass_p1_id,
-            "course_id": p_course_id,
-            "primary_group_id": primary_group_id,
-            "secondary_group_id": None,
-            "teacher_id": primary_teacher_id,
-            "secondary_teacher_id": None,
-            "is_rotation": False,
-            "teaching_mode": "SINGLE",
-            "is_pinned": False,
-            "fixed_day": None,
-            "fixed_start_period": None,
-            "fixed_room_id": practice_room_1_id or None,
-            "external_teacher_name": None,
-            "parallel_with_id": ass_p2_id if effective_sync_parallel else None,
-            "component_type": "PRACTICE",
-            "parent_assignment_id": bundle_id
-        }
+        # 3.1 แผนการสอนทฤษฎี (ถ้ามีคาบทฤษฎี)
+        if theory_periods > 0:
+            ass_theory = {
+                "id": ass_theory_id,
+                "course_id": t_course_id,
+                "primary_group_id": primary_group_id,
+                "secondary_group_id": secondary_group_id if not is_solo_mode else None,
+                "teacher_id": primary_teacher_id,
+                "secondary_teacher_id": None,
+                "is_rotation": False,
+                "teaching_mode": "MERGED" if not is_solo_mode else "SINGLE",
+                "is_pinned": False,
+                "fixed_day": None,
+                "fixed_start_period": None,
+                "fixed_room_id": theory_room_id or None,
+                "external_teacher_name": None,
+                "parallel_with_id": None,
+                "component_type": "THEORY",
+                "parent_assignment_id": bundle_id
+            }
+            assignments_to_add.append(ass_theory)
 
-        assignments_to_add = [ass_theory, ass_p1]
-
-        if not is_solo_mode:
-            # 3.3 แผนการสอนปฏิบัติ กลุ่ม 2 (ผู้สอนคืออาจารย์ร่วม หรืออาจารย์คนเดียวกัน)
-            ass_p2 = {
-                "id": ass_p2_id,
+        # 3.2 แผนการสอนปฏิบัติ กลุ่ม 1 (ถ้ามีคาบปฏิบัติ)
+        if practice_periods > 0:
+            ass_p1 = {
+                "id": ass_p1_id,
                 "course_id": p_course_id,
-                "primary_group_id": secondary_group_id,
+                "primary_group_id": primary_group_id,
                 "secondary_group_id": None,
-                "teacher_id": effective_secondary_teacher_id,
+                "teacher_id": primary_teacher_id,
                 "secondary_teacher_id": None,
                 "is_rotation": False,
                 "teaching_mode": "SINGLE",
                 "is_pinned": False,
                 "fixed_day": None,
                 "fixed_start_period": None,
-                "fixed_room_id": practice_room_2_id or None,
+                "fixed_room_id": practice_room_1_id or None,
                 "external_teacher_name": None,
-                "parallel_with_id": ass_p1_id if effective_sync_parallel else None,
+                "parallel_with_id": ass_p2_id if effective_sync_parallel else None,
                 "component_type": "PRACTICE",
                 "parent_assignment_id": bundle_id
             }
-            assignments_to_add.append(ass_p2)
+            assignments_to_add.append(ass_p1)
+
+            if not is_solo_mode:
+                # 3.3 แผนการสอนปฏิบัติ กลุ่ม 2 (ผู้สอนคืออาจารย์ร่วม หรืออาจารย์คนเดียวกัน)
+                ass_p2 = {
+                    "id": ass_p2_id,
+                    "course_id": p_course_id,
+                    "primary_group_id": secondary_group_id,
+                    "secondary_group_id": None,
+                    "teacher_id": effective_secondary_teacher_id,
+                    "secondary_teacher_id": None,
+                    "is_rotation": False,
+                    "teaching_mode": "SINGLE",
+                    "is_pinned": False,
+                    "fixed_day": None,
+                    "fixed_start_period": None,
+                    "fixed_room_id": practice_room_2_id or None,
+                    "external_teacher_name": None,
+                    "parallel_with_id": ass_p1_id if effective_sync_parallel else None,
+                    "component_type": "PRACTICE",
+                    "parent_assignment_id": bundle_id
+                }
+                assignments_to_add.append(ass_p2)
 
         self.assignments.extend(assignments_to_add)
         self._sanitize_data()
@@ -570,8 +586,8 @@ class TimetableDataManager:
 
         return {
             "bundle_id": bundle_id,
-            "theory_course": self.courses[t_course_id],
-            "practice_course": self.courses[p_course_id],
+            "theory_course": self.courses.get(t_course_id) if theory_periods > 0 else None,
+            "practice_course": self.courses.get(p_course_id) if practice_periods > 0 else None,
             "assignments": assignments_to_add
         }
 

@@ -70,6 +70,16 @@ class BulkDataImporter:
         return True
 
     @classmethod
+    def _clean_course_code(cls, code: Any) -> str:
+        """Cleans and standardizes course code."""
+        if code is None:
+            return ""
+        c = str(code).strip()
+        if c.endswith(".0") and c[:-2].replace("-", "").isdigit():
+            c = c[:-2]
+        return c
+
+    @classmethod
     def get_template_csv(cls) -> bytes:
         """Returns CSV bytes with UTF-8 BOM so Excel opens Thai properly."""
         output = io.StringIO()

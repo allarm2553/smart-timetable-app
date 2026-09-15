@@ -408,7 +408,7 @@ class TimetableDataManager:
         theory_periods: int,
         practice_periods: int,
         primary_group_id: str,
-        secondary_group_id: str,
+        secondary_group_id: Optional[str],
         primary_teacher_id: str,
         secondary_teacher_id: Optional[str] = None,
         teaching_mode: str = "CO_TEACHING",
@@ -423,6 +423,7 @@ class TimetableDataManager:
         """สร้างแพ็กเกจวิชา 'ทฤษฎีเรียนรวม 2 กลุ่ม / ปฏิบัติแยกกลุ่ม'
         รองรับทั้งโหมดผู้สอนคนเดียว (Single Teacher) และสอนร่วม (Co-teaching 2 อาจารย์)
         พร้อมระบุห้องเรียนประจำหรือห้องปฏิบัติการแยกกลุ่มได้เจาะจง
+        กรณี secondary_group_id=None: จัดเป็นโหมดเรียนเดี่ยว สร้างเฉพาะทฤษฎี+ปฏิบัติสำหรับ primary group เท่านั้น
         """
         import time
         import re
@@ -431,10 +432,13 @@ class TimetableDataManager:
         ts = int(time.time()) % 100000
         bundle_id = f"BUNDLE_{clean_code}_{ts}"
 
+        # โหมดเรียนเดี่ยว (ไม่มีกลุ่มที่ 2)
+        is_solo_mode = not secondary_group_id
+
         is_single_teacher = (teaching_mode == "SINGLE" or not secondary_teacher_id or secondary_teacher_id == primary_teacher_id)
         effective_secondary_teacher_id = primary_teacher_id if is_single_teacher else secondary_teacher_id
         # หากเป็นผู้สอนคนเดียว ไม่สามารถจัดคู่ขนานเวลาเดียวกันได้
-        effective_sync_parallel = False if is_single_teacher else bool(sync_parallel)
+        effective_sync_parallel = False if (is_single_teacher or is_solo_mode) else bool(sync_parallel)
 
         # ตรวจสอบประเภทห้องจากห้องจริงที่เลือก (ถ้ามี)
         rooms_dict = {r["id"]: r for r in self.rooms}
@@ -456,7 +460,7 @@ class TimetableDataManager:
                 "periods_per_session": theory_periods,
                 "sessions_per_week": 1,
                 "required_room_type": theory_room_type,
-                "allow_merge": True,
+                "allow_merge": not is_solo_mode,  # เรียนเดี่ยว = ไม่ merge
                 "base_id": None
             }
 
@@ -478,14 +482,16 @@ class TimetableDataManager:
 
         # รหัส Assignments ย่อย
         clean_g1 = re.sub(r'[^a-zA-Z0-9]', '_', primary_group_id).strip('_')
-        clean_g2 = re.sub(r'[^a-zA-Z0-9]', '_', secondary_group_id).strip('_')
+        clean_g2 = re.sub(r'[^a-zA-Z0-9]', '_', secondary_group_id).strip('_') if secondary_group_id else "SOLO"
 
         ass_theory_id = f"ASS_{clean_code}_T_{clean_g1}_{clean_g2}"
         ass_p1_id = f"ASS_{clean_code}_P_{clean_g1}"
-        ass_p2_id = f"ASS_{clean_code}_P_{clean_g2}"
+        ass_p2_id = f"ASS_{clean_code}_P_{clean_g2}" if not is_solo_mode else None
 
         # ลบ Assignment เดิมที่ซ้ำหรือต้องการแทนที่ถ้ามี
-        existing_ids = {ass_theory_id, ass_p1_id, ass_p2_id}
+        existing_ids = {ass_theory_id, ass_p1_id}
+        if ass_p2_id:
+            existing_ids.add(ass_p2_id)
         if source_assignment_id:
             src_a = self._find_assignment(source_assignment_id)
             if src_a:
@@ -494,16 +500,16 @@ class TimetableDataManager:
                 existing_ids.add(source_assignment_id)
         self.assignments = [a for a in self.assignments if a["id"] not in existing_ids]
 
-        # 3.1 แผนการสอนทฤษฎี (เรียนรวม 2 กลุ่ม ผู้สอนคืออาจารย์หลัก)
+        # 3.1 แผนการสอนทฤษฎี (เรียนรวม 2 กลุ่ม หรือเดี่ยวกลุ่มเดียวถ้า is_solo_mode)
         ass_theory = {
             "id": ass_theory_id,
             "course_id": t_course_id,
             "primary_group_id": primary_group_id,
-            "secondary_group_id": secondary_group_id,
+            "secondary_group_id": secondary_group_id if not is_solo_mode else None,
             "teacher_id": primary_teacher_id,
             "secondary_teacher_id": None,
             "is_rotation": False,
-            "teaching_mode": "MERGED",
+            "teaching_mode": "MERGED" if not is_solo_mode else "SINGLE",
             "is_pinned": False,
             "fixed_day": None,
             "fixed_start_period": None,
@@ -534,27 +540,31 @@ class TimetableDataManager:
             "parent_assignment_id": bundle_id
         }
 
-        # 3.3 แผนการสอนปฏิบัติ กลุ่ม 2 (ผู้สอนคืออาจารย์ร่วม หรืออาจารย์คนเดียวกันถ้าเลือกผู้สอนคนเดียว)
-        ass_p2 = {
-            "id": ass_p2_id,
-            "course_id": p_course_id,
-            "primary_group_id": secondary_group_id,
-            "secondary_group_id": None,
-            "teacher_id": effective_secondary_teacher_id,
-            "secondary_teacher_id": None,
-            "is_rotation": False,
-            "teaching_mode": "SINGLE",
-            "is_pinned": False,
-            "fixed_day": None,
-            "fixed_start_period": None,
-            "fixed_room_id": practice_room_2_id or None,
-            "external_teacher_name": None,
-            "parallel_with_id": ass_p1_id if effective_sync_parallel else None,
-            "component_type": "PRACTICE",
-            "parent_assignment_id": bundle_id
-        }
+        assignments_to_add = [ass_theory, ass_p1]
 
-        self.assignments.extend([ass_theory, ass_p1, ass_p2])
+        if not is_solo_mode:
+            # 3.3 แผนการสอนปฏิบัติ กลุ่ม 2 (ผู้สอนคืออาจารย์ร่วม หรืออาจารย์คนเดียวกัน)
+            ass_p2 = {
+                "id": ass_p2_id,
+                "course_id": p_course_id,
+                "primary_group_id": secondary_group_id,
+                "secondary_group_id": None,
+                "teacher_id": effective_secondary_teacher_id,
+                "secondary_teacher_id": None,
+                "is_rotation": False,
+                "teaching_mode": "SINGLE",
+                "is_pinned": False,
+                "fixed_day": None,
+                "fixed_start_period": None,
+                "fixed_room_id": practice_room_2_id or None,
+                "external_teacher_name": None,
+                "parallel_with_id": ass_p1_id if effective_sync_parallel else None,
+                "component_type": "PRACTICE",
+                "parent_assignment_id": bundle_id
+            }
+            assignments_to_add.append(ass_p2)
+
+        self.assignments.extend(assignments_to_add)
         self._sanitize_data()
         self._save()
 
@@ -562,7 +572,7 @@ class TimetableDataManager:
             "bundle_id": bundle_id,
             "theory_course": self.courses[t_course_id],
             "practice_course": self.courses[p_course_id],
-            "assignments": [ass_theory, ass_p1, ass_p2]
+            "assignments": assignments_to_add
         }
 
     def auto_add_scout_and_activities(self) -> Dict[str, Any]:

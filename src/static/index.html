@@ -1238,17 +1238,55 @@
 
     function onBulkFileSelected(e) {
       const file = e.target.files[0];
-      if (file) {
-        selectedImportFile = file;
-        const promptEl = document.getElementById('fileUploadPrompt');
-        if (promptEl) promptEl.classList.add('hidden');
-        
-        const selectedEl = document.getElementById('fileUploadSelected');
-        if (selectedEl) selectedEl.classList.remove('hidden');
-        
-        const nameEl = document.getElementById('selectedFileName');
-        if (nameEl) nameEl.textContent = `${file.name} (${(file.size / 1024).toFixed(1)} KB)`;
-        lucide.createIcons();
+      if (!file) return;
+      selectedImportFile = file;
+
+      const promptEl = document.getElementById('fileUploadPrompt');
+      if (promptEl) promptEl.classList.add('hidden');
+      const selectedEl = document.getElementById('fileUploadSelected');
+      if (selectedEl) selectedEl.classList.remove('hidden');
+      const nameEl = document.getElementById('selectedFileName');
+      if (nameEl) nameEl.textContent = `${file.name} (${(file.size / 1024).toFixed(1)} KB)`;
+      lucide.createIcons();
+
+      // ถ้าเป็นไฟล์ Excel ให้ preview ชีตก่อน
+      const sheetPanel = document.getElementById('sheetSelectionPanel');
+      if (sheetPanel) sheetPanel.classList.add('hidden');
+
+      if (file.name.toLowerCase().endsWith('.xlsx') || file.name.toLowerCase().endsWith('.xls')) {
+        const reader = new FileReader();
+        reader.onload = async () => {
+          try {
+            const res = await fetch('/api/import/preview-sheets', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ filename: file.name, content_base64: reader.result })
+            });
+            if (!res.ok) return;
+            const data = await res.json();
+            const sheets = data.sheets || [];
+            if (sheets.length <= 1) return; // ไฟล์มีชีตเดียว ไม่ต้องแสดง panel
+
+            if (!sheetPanel) return;
+            sheetPanel.classList.remove('hidden');
+            const listEl = document.getElementById('sheetCheckboxList');
+            if (!listEl) return;
+            listEl.innerHTML = sheets.map(s => {
+              const checked = s.is_semester_sheet ? 'checked' : '';
+              const countLabel = s.estimated_courses > 0 ? ` <span class="text-slate-400">(~${s.estimated_courses} วิชา)</span>` : '';
+              const semTag = s.is_semester_sheet
+                ? `<span class="ml-1 px-1.5 py-0.5 bg-indigo-100 text-indigo-700 text-[10px] font-bold rounded">ภาคเรียน</span>`
+                : '';
+              return `<label class="flex items-center gap-2 py-1.5 px-2 rounded hover:bg-indigo-50 cursor-pointer border border-transparent hover:border-indigo-200 transition">
+                <input type="checkbox" name="sheetSelect" value="${s.sheet_name}" ${checked} class="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500">
+                <span class="font-semibold text-slate-800 text-xs">${s.display_name}</span>${semTag}${countLabel}
+              </label>`;
+            }).join('');
+          } catch (err) {
+            // ไม่แสดง panel ถ้า preview ล้มเหลว
+          }
+        };
+        reader.readAsDataURL(file);
       }
     }
 
@@ -1261,6 +1299,19 @@
       const mode = document.querySelector('input[name="importMode"]:checked')?.value || 'replace';
       const targetGroupId = document.getElementById('importTargetGroupSelect')?.value || null;
       const defaultTeacherId = document.getElementById('importDefaultTeacherSelect')?.value || null;
+
+      // รวบรวมชีตที่เลือก (ถ้าแสดง panel)
+      let selectedSheets = null;
+      const sheetPanel = document.getElementById('sheetSelectionPanel');
+      if (sheetPanel && !sheetPanel.classList.contains('hidden')) {
+        const checkedBoxes = sheetPanel.querySelectorAll('input[name="sheetSelect"]:checked');
+        if (checkedBoxes.length > 0) {
+          selectedSheets = Array.from(checkedBoxes).map(cb => cb.value);
+        } else {
+          alert('กรุณาเลือกอย่างน้อย 1 ชีต/ภาคเรียนที่ต้องการนำเข้า');
+          return;
+        }
+      }
 
       const btn = document.getElementById('btnExecuteImport');
       const origText = btn.innerHTML;
@@ -1288,7 +1339,8 @@
             content_base64: dataUrl,
             mode: mode,
             target_group_id: targetGroupId,
-            default_teacher_id: defaultTeacherId
+            default_teacher_id: defaultTeacherId,
+            selected_sheets: selectedSheets
           })
         });
 
@@ -1298,10 +1350,11 @@
         }
 
         // Show Success status
+        const sheetNote = selectedSheets ? ` (นำเข้า ${selectedSheets.length} ชีต: ${selectedSheets.join(', ')})` : '';
         statusBox.className = "rounded-lg p-3 text-xs border bg-emerald-50 text-emerald-900 border-emerald-300 font-display space-y-1";
         statusBox.innerHTML = `
           <div class="font-bold flex items-center space-x-1">
-            <span>✅ นำเข้าข้อมูลสำเร็จเรียบร้อย!</span>
+            <span>✅ นำเข้าข้อมูลสำเร็จเรียบร้อย!${sheetNote}</span>
           </div>
           <div>• นำเข้ารายวิชาและแผนการสอน: <strong>${result.imported_count}</strong> รายการ</div>
           ${result.skipped_count ? `<div>• ข้ามแถวที่ไม่ใช่รายวิชา (หัวข้อหมวด/ยอดรวม/ไม่มีรหัส): <strong>${result.skipped_count}</strong> แถว</div>` : ''}
@@ -3496,6 +3549,39 @@
       }
     }
 
+    function onSplitSecondaryGroupChange() {
+      const grpSelect2 = document.getElementById('splitSecondaryGroup');
+      const isSolo = !grpSelect2 || !grpSelect2.value;
+      const grp2Panel = document.getElementById('splitGroup2Panel');
+      const roomSection = document.getElementById('splitRoomsSection');
+      const parallelContainer = document.getElementById('splitParallelContainer');
+      const singleParallelNotice = document.getElementById('splitSingleParallelNotice');
+      const lblPrac2 = document.getElementById('lblSplitPracticeRoom2');
+      const rmPrac2 = document.getElementById('splitPracticeRoom2');
+      const rmPrac2Container = document.getElementById('splitPracticeRoom2Container');
+      const theoryRoomLabel = document.querySelector('label[for="splitTheoryRoom"], #splitRoomsSection label:first-of-type');
+
+      if (isSolo) {
+        // โหมดเรียนเดี่ยว: ซ่อน panel กลุ่ม 2 และห้องปฏิบัติ 2
+        if (grp2Panel) grp2Panel.classList.add('opacity-40', 'pointer-events-none');
+        if (rmPrac2Container) rmPrac2Container.classList.add('hidden');
+        if (parallelContainer) parallelContainer.classList.add('hidden');
+        if (singleParallelNotice) singleParallelNotice.classList.add('hidden');
+        // อัปเดต label ห้องทฤษฎี
+        const theoryLbl = document.getElementById('lblSplitTheoryRoom');
+        if (theoryLbl) theoryLbl.textContent = '1. ห้องเรียนภาคทฤษฎี/บรรยาย (กลุ่มเดียว):';
+      } else {
+        // โหมดเรียนรวม 2 กลุ่ม: แสดง panel กลุ่ม 2
+        if (grp2Panel) grp2Panel.classList.remove('opacity-40', 'pointer-events-none');
+        if (rmPrac2Container) rmPrac2Container.classList.remove('hidden');
+        if (parallelContainer && !document.getElementById('splitTeachingMode')?.value !== 'SINGLE') {
+          parallelContainer.classList.remove('hidden');
+        }
+        const theoryLbl = document.getElementById('lblSplitTheoryRoom');
+        if (theoryLbl) theoryLbl.textContent = '1. ห้องเรียนภาคทฤษฎี (ห้องบรรยายใหญ่สำหรับ 2 กลุ่ม):';
+      }
+    }
+
     function openSplitTheoryPracticeModal() {
       if (!fullDataManagerData) return;
 
@@ -3512,11 +3598,19 @@
       const tchs = fullDataManagerData.teachers || [];
       const rooms = fullDataManagerData.rooms || [];
 
+      // เพิ่ม option "เรียนเดี่ยว" ก่อนรายการกลุ่มเรียน
+      const soloOpt = '<option value="">-- เรียนเดี่ยว (กลุ่มนี้กลุ่มเดียว ไม่รวมกลุ่ม) --</option>';
       const grpOpts = grps.map(g => `<option value="${g.id}">${g.name} (${g.level === 'VOC_CERT' ? 'ปวช.' : 'ปวส.'})</option>`).join('');
       if (grpSelect1) grpSelect1.innerHTML = grpOpts;
-      if (grpSelect2) grpSelect2.innerHTML = grpOpts;
+      if (grpSelect2) grpSelect2.innerHTML = soloOpt + grpOpts;
       if (grps.length > 1 && grpSelect2) {
-        grpSelect2.selectedIndex = 1;
+        grpSelect2.selectedIndex = 1; // เลือกกลุ่มที่ 2 เป็นค่าเริ่มต้น
+      }
+
+      // bind onChange เพื่อซ่อน/แสดง panel กลุ่ม 2
+      if (grpSelect2) {
+        grpSelect2.onchange = onSplitSecondaryGroupChange;
+        onSplitSecondaryGroupChange();
       }
 
       const tchOpts = tchs.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
@@ -3572,12 +3666,11 @@
       if (a.secondary_group_id) {
         document.getElementById('splitSecondaryGroup').value = a.secondary_group_id;
       } else {
-        const grps = fullDataManagerData.groups || [];
-        const otherGrp = grps.find(g => g.id !== a.primary_group_id);
-        if (otherGrp) {
-          document.getElementById('splitSecondaryGroup').value = otherGrp.id;
-        }
+        // ไม่มีกลุ่มที่ 2 → ตั้งเป็น "เรียนเดี่ยว" (option value="")
+        document.getElementById('splitSecondaryGroup').value = '';
       }
+      // ซ่อน/แสดง panel กลุ่ม 2 ตามค่าที่เลือก
+      onSplitSecondaryGroupChange();
 
       if (a.secondary_teacher_id && a.secondary_teacher_id !== a.teacher_id) {
         document.getElementById('splitSecondaryTeacher').value = a.secondary_teacher_id;
@@ -3621,10 +3714,13 @@
       const practice_room_2_id = document.getElementById('splitPracticeRoom2')?.value || null;
       let sync_parallel = document.getElementById('splitSyncParallel') ? document.getElementById('splitSyncParallel').checked : false;
 
+      // secondary_group_id ว่าง = โหมดเรียนเดี่ยว
+      const isSoloMode = !secondary_group_id;
+
       if (!code || !name) return alert('กรุณาระบุรหัสวิชาและชื่อวิชา');
-      if (primary_group_id === secondary_group_id) return alert('กลุ่มผู้เรียนที่ 1 และกลุ่มที่ 2 ต้องไม่เป็นกลุ่มเดียวกัน');
+      if (!isSoloMode && primary_group_id === secondary_group_id) return alert('กลุ่มผู้เรียนที่ 1 และกลุ่มที่ 2 ต้องไม่เป็นกลุ่มเดียวกัน');
       
-      if (teaching_mode === 'SINGLE') {
+      if (teaching_mode === 'SINGLE' || isSoloMode) {
         secondary_teacher_id = primary_teacher_id;
         sync_parallel = false;
       } else {
@@ -5256,6 +5352,25 @@
           </div>
         </div>
 
+        <!-- Sheet Selection Panel (แสดงเมื่ออัปโหลดไฟล์ Excel หลายชีต) -->
+        <div id="sheetSelectionPanel" class="hidden bg-indigo-50/80 border border-indigo-200 rounded-lg p-3 space-y-2">
+          <div class="flex items-center justify-between">
+            <div class="text-xs font-bold text-indigo-900 font-display flex items-center gap-1.5">
+              <i data-lucide="layers" class="w-3.5 h-3.5 text-indigo-600"></i>
+              <span>เลือกชีต/ภาคเรียนที่ต้องการนำเข้า</span>
+            </div>
+            <div class="flex gap-2">
+              <button type="button" onclick="document.querySelectorAll('#sheetCheckboxList input[type=checkbox]').forEach(c=>c.checked=true)" class="text-[10px] text-indigo-700 hover:text-indigo-900 font-semibold underline">เลือกทั้งหมด</button>
+              <span class="text-slate-300">|</span>
+              <button type="button" onclick="document.querySelectorAll('#sheetCheckboxList input[type=checkbox]').forEach(c=>c.checked=false)" class="text-[10px] text-slate-500 hover:text-slate-700 font-semibold underline">ยกเลิกทั้งหมด</button>
+            </div>
+          </div>
+          <div class="text-[11px] text-indigo-700 pb-1">ชีตที่มีป้าย <span class="px-1 py-0.5 bg-indigo-100 text-indigo-700 text-[10px] font-bold rounded">ภาคเรียน</span> ถูกเลือกไว้ให้อัตโนมัติ — ยกเลิกชีตที่ไม่ต้องการได้</div>
+          <div id="sheetCheckboxList" class="space-y-0.5 max-h-40 overflow-y-auto pr-1">
+            <!-- รายการ checkbox จะถูกสร้างโดย JavaScript -->
+          </div>
+        </div>
+
         <!-- Step 3: Mode Selection -->
         <div>
           <label class="block text-xs font-bold text-slate-700 mb-1.5 font-display">ขั้นตอนที่ 3: เลือกรูปแบบการนำเข้า</label>
@@ -5484,14 +5599,14 @@
           </div>
 
           <!-- Group 2 & Secondary Teacher -->
-          <div class="bg-emerald-50/70 border border-emerald-200 rounded-xl p-3.5 space-y-2.5">
+          <div id="splitGroup2Panel" class="bg-emerald-50/70 border border-emerald-200 rounded-xl p-3.5 space-y-2.5">
             <div class="font-bold text-emerald-950 flex items-center justify-between">
               <span id="splitGroup2HeaderTitle">👥 กลุ่มที่ 2 & อาจารย์ร่วม</span>
               <span class="text-[10px] bg-emerald-200 text-emerald-900 px-1.5 py-0.5 rounded font-bold">ปฏิบัติกลุ่ม 2</span>
             </div>
             <div>
-              <label class="block font-bold text-slate-700 mb-1">กลุ่มผู้เรียนที่ 2 (เรียนร่วมทฤษฎี): *</label>
-              <select id="splitSecondaryGroup" required class="w-full bg-white border border-slate-300 rounded px-2.5 py-1.5 text-xs font-semibold text-slate-900"></select>
+              <label class="block font-bold text-slate-700 mb-1">กลุ่มผู้เรียนที่ 2 (เรียนร่วมทฤษฎี หรือเลือก "เรียนเดี่ยว"):</label>
+              <select id="splitSecondaryGroup" class="w-full bg-white border border-slate-300 rounded px-2.5 py-1.5 text-xs font-semibold text-slate-900"></select>
             </div>
             <div id="splitSecondaryTeacherContainer">
               <label class="block font-bold text-slate-700 mb-1">อาจารย์ร่วม (สอนปฏิบัติกลุ่ม 2): *</label>
@@ -5505,7 +5620,7 @@
         </div>
 
         <!-- Rooms Config Section -->
-        <div class="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
+        <div id="splitRoomsSection" class="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
           <div class="flex items-center justify-between">
             <div class="font-bold text-slate-800 flex items-center gap-1.5 text-xs text-indigo-900">
               <i data-lucide="door-closed" class="w-4 h-4 text-indigo-600"></i>
@@ -5516,7 +5631,7 @@
 
           <!-- Theory Room -->
           <div>
-            <label class="block font-bold text-slate-700 mb-1">1. ห้องเรียนภาคทฤษฎี (ห้องบรรยายใหญ่สำหรับ 2 กลุ่ม):</label>
+            <label id="lblSplitTheoryRoom" class="block font-bold text-slate-700 mb-1">1. ห้องเรียนภาคทฤษฎี (ห้องบรรยายใหญ่สำหรับ 2 กลุ่ม):</label>
             <select id="splitTheoryRoom" class="w-full bg-white border border-slate-300 rounded px-2.5 py-1.5 text-xs font-medium text-slate-900">
               <option value="">🤖 อัตโนมัติ: ให้ระบบจัดหาห้องบรรยายใหญ่ตามความจุ</option>
             </select>
@@ -5530,7 +5645,7 @@
                 <option value="">🤖 อัตโนมัติ: จัดห้องปฏิบัติการตามความเหมาะสม</option>
               </select>
             </div>
-            <div>
+            <div id="splitPracticeRoom2Container">
               <label class="block font-bold text-emerald-900 mb-1" id="lblSplitPracticeRoom2">3. ห้องปฏิบัติการกลุ่มที่ 2 (ห้องประจำอาจารย์ร่วม):</label>
               <select id="splitPracticeRoom2" class="w-full bg-white border border-slate-300 rounded px-2.5 py-1.5 text-xs font-medium text-slate-900">
                 <option value="">🤖 อัตโนมัติ: จัดห้องปฏิบัติการตามความเหมาะสม</option>

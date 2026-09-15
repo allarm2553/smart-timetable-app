@@ -827,6 +827,32 @@ def get_import_template():
         }
     )
 
+@app.post("/api/import/preview-sheets")
+def preview_import_sheets(req: Dict[str, Any]):
+    """
+    ดึงรายชื่อชีทในไฟล์ XLSX พร้อมจำนวนวิชาโดยประมาณ
+    Body: { filename, content_base64 }
+    Return: { sheets: [{ sheet_name, display_name, estimated_courses, is_semester_sheet }] }
+    """
+    filename = req.get("filename", "upload.xlsx")
+    file_bytes = None
+    if "content_base64" in req and req["content_base64"]:
+        b64_str = req["content_base64"]
+        if "," in b64_str:
+            b64_str = b64_str.split(",", 1)[1]
+        try:
+            file_bytes = base64.b64decode(b64_str)
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"ไม่สามารถถอดรหัส Base64 ได้: {str(e)}")
+    else:
+        raise HTTPException(status_code=400, detail="กรุณาระบุ content_base64")
+
+    try:
+        sheets = BulkDataImporter.preview_sheets(file_bytes)
+        return {"sheets": sheets}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
 @app.post("/api/import/process")
 def process_bulk_import(req: Dict[str, Any]):
     """
@@ -835,11 +861,13 @@ def process_bulk_import(req: Dict[str, Any]):
     - filename: str (เช่น data.csv หรือ data.xlsx)
     - content_base64: str (base64 encoded file bytes) หรือ csv_text: str
     - mode: 'replace' | 'append' (default: 'replace')
+    - selected_sheets: list[str] (optional) ชื่อชีทที่ต้องการนำเข้า (XLSX)
     """
     filename = req.get("filename", "upload.csv")
     mode = req.get("mode", "replace")
     target_group_id = req.get("target_group_id")
     default_teacher_id = req.get("default_teacher_id")
+    selected_sheets = req.get("selected_sheets") or None  # None = นำเข้าทั้งหมด
     
     file_bytes = None
     if "content_base64" in req and req["content_base64"]:
@@ -863,7 +891,8 @@ def process_bulk_import(req: Dict[str, Any]):
             mode=mode,
             data_manager=data_manager,
             target_group_id=target_group_id,
-            default_teacher_id=default_teacher_id
+            default_teacher_id=default_teacher_id,
+            selected_sheets=selected_sheets
         )
         return result
     except Exception as e:

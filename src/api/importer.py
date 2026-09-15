@@ -83,11 +83,62 @@ class BulkDataImporter:
         return csv_text.encode("utf-8")
 
     @classmethod
-    def parse_file_to_rows(cls, file_bytes: bytes, filename: str) -> List[Dict[str, str]]:
+    def preview_sheets(cls, file_bytes: bytes) -> List[Dict[str, Any]]:
+        """
+        ดึงรายชื่อชีทจากไฟล์ Excel พร้อมจำนวนวิชาโดยประมาณ
+        คืน list of { sheet_name, display_name, estimated_courses, is_semester_sheet }
+        """
+        try:
+            wb = openpyxl.load_workbook(io.BytesIO(file_bytes), data_only=True, read_only=True)
+            result = []
+            for sheet_name in wb.sheetnames:
+                ws = wb[sheet_name]
+                # นับแถวที่มี valid course code
+                count = 0
+                max_scan = min(200, ws.max_row or 0)
+                for r_idx in range(1, max_scan + 1):
+                    try:
+                        first_cell = ws.cell(r_idx, 1).value
+                        second_cell = ws.cell(r_idx, 2).value
+                        for cell_val in [first_cell, second_cell]:
+                            if cls.is_valid_course_code(cell_val):
+                                count += 1
+                                break
+                    except Exception:
+                        pass
+
+                # ตรวจว่าเป็นชีตภาคเรียน เช่น "2.2569", "1.2571", "S.2570"
+                sem_match = re.match(r'^([0-9]|S|s)\.(25\d{2}|\d{2})$', sheet_name.strip())
+                is_semester = bool(sem_match)
+
+                display_name = sheet_name
+                if sem_match:
+                    term_str = sem_match.group(1).upper()
+                    yr_raw = sem_match.group(2)
+                    yr_full = yr_raw if len(yr_raw) == 4 else f"25{yr_raw}"
+                    term_label = {"1": "ภาคเรียนที่ 1", "2": "ภาคเรียนที่ 2", "S": "ภาคฤดูร้อน"}.get(term_str, f"เทอม {term_str}")
+                    # ประมาณชั้นปี
+                    yr_map = {"2569": "ปวช.1", "2570": "ปวช.2", "2571": "ปวช.3",
+                              "2572": "ปวส.1", "2573": "ปวส.2"}
+                    yr_label = yr_map.get(yr_full, f"รุ่น {yr_full}")
+                    display_name = f"{term_str}/{yr_full} — {term_label} ({yr_label})"
+
+                result.append({
+                    "sheet_name": sheet_name,
+                    "display_name": display_name,
+                    "estimated_courses": count,
+                    "is_semester_sheet": is_semester,
+                })
+            return result
+        except Exception as e:
+            raise ValueError(f"ไม่สามารถอ่านรายชื่อชีทจากไฟล์ได้: {str(e)}")
+
+    @classmethod
+    def parse_file_to_rows(cls, file_bytes: bytes, filename: str, selected_sheets: Optional[List[str]] = None) -> List[Dict[str, str]]:
         """Parses CSV or XLSX into a list of row dictionaries."""
         filename_lower = filename.lower()
         if filename_lower.endswith(".xlsx") or filename_lower.endswith(".xls"):
-            return cls._parse_xlsx(file_bytes)
+            return cls._parse_xlsx(file_bytes, selected_sheets=selected_sheets)
         else:
             return cls._parse_csv(file_bytes)
 
@@ -136,17 +187,25 @@ class BulkDataImporter:
         return dict_rows
 
     @classmethod
-    def _parse_xlsx(cls, file_bytes: bytes) -> List[Dict[str, str]]:
+    def _parse_xlsx(cls, file_bytes: bytes, selected_sheets: Optional[List[str]] = None) -> List[Dict[str, str]]:
         """
         Reads XLSX using openpyxl, automatically detecting header rows across sheets
         and extracting study plan columns (supporting multi-line sub-headers and side-by-side tables).
+        If selected_sheets is provided, only those sheets will be parsed.
         """
         try:
             wb = openpyxl.load_workbook(io.BytesIO(file_bytes), data_only=True)
             dict_rows = []
 
             # จัดเรียงลำดับชีทตามปีการศึกษา (เช่น 1.2569, 2.2569, 2.2570, 1.2571, 2.2571)
-            target_sheets = sorted(wb.sheetnames, key=lambda s: group_sort_key(s))
+            all_sheets = sorted(wb.sheetnames, key=lambda s: group_sort_key(s))
+
+            # กรองเฉพาะชีทที่เลือก ถ้ามีการระบุ
+            if selected_sheets is not None:
+                selected_set = set(selected_sheets)
+                target_sheets = [s for s in all_sheets if s in selected_set]
+            else:
+                target_sheets = all_sheets
 
             for sheet_name in target_sheets:
                 ws = wb[sheet_name]
@@ -321,7 +380,8 @@ class BulkDataImporter:
         mode: str,
         data_manager: Any,
         target_group_id: Optional[str] = None,
-        default_teacher_id: Optional[str] = None
+        default_teacher_id: Optional[str] = None,
+        selected_sheets: Optional[List[str]] = None
     ) -> Dict[str, Any]:
         """
         Processes bulk import of courses and lesson assignments.
@@ -329,10 +389,11 @@ class BulkDataImporter:
         mode: 'replace' | 'append'
         target_group_id: Optional group ID to force assign all imported courses to this group
         default_teacher_id: Optional teacher ID to default unassigned courses
+        selected_sheets: Optional list of sheet names to import (XLSX only). If None, imports all sheets.
         """
-        rows = cls.parse_file_to_rows(file_bytes, filename)
+        rows = cls.parse_file_to_rows(file_bytes, filename, selected_sheets=selected_sheets)
         if not rows:
-            raise ValueError("ไม่พบข้อมูลในไฟล์ที่อัปโหลด")
+            raise ValueError("ไม่พบข้อมูลในไฟล์ที่อัปโหลด หรือชีทที่เลือกไม่มีรายวิชา")
 
         # Load existing data
         all_data = data_manager.get_all_data()
